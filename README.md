@@ -249,16 +249,97 @@ telemetry endpoint. They run on every feedback (Cmd+Click) event.
 
 ```ts
 import { consoleAdapter, webhookAdapter } from '@microsoft/snapfeed'
+import { githubAdapter, slackAdapter, telegramAdapter } from '@microsoft/snapfeed/adapters'
 
 initSnapfeed({
   adapters: [
     consoleAdapter(),                          // log to dev console
     webhookAdapter('https://my-api.com/hook'), // POST to a webhook
+    githubAdapter({                            // create GitHub issues
+      token: process.env.GITHUB_TOKEN!,
+      owner: 'my-org', repo: 'my-app',
+      labels: ['feedback', 'from-user'],
+    }),
+    slackAdapter({                             // post to Slack
+      webhookUrl: process.env.SLACK_WEBHOOK!,
+    }),
+    telegramAdapter({                          // send to Telegram
+      botToken: process.env.TELEGRAM_BOT_TOKEN!,
+      chatId: process.env.TELEGRAM_CHAT_ID!,
+    }),
   ],
 })
 ```
 
+| Adapter | Destination | Screenshot |
+|---------|-------------|------------|
+| `consoleAdapter()` | Dev console | — |
+| `webhookAdapter(url)` | Any HTTP endpoint | JSON payload |
+| `githubAdapter({...})` | GitHub Issues | Embedded in body |
+| `slackAdapter({...})` | Slack channel | Block Kit message |
+| `telegramAdapter({...})` | Telegram chat | Photo with caption |
+
 Custom adapters implement `{ name: string, send(event): Promise<{ ok, error? }> }`.
+
+---
+
+## Server Integrations
+
+### Next.js App Router
+
+```ts
+// app/api/feedback/route.ts
+import { createFeedbackHandler } from '@microsoft/snapfeed-server/nextjs'
+import { slackAdapter } from '@microsoft/snapfeed/adapters'
+
+const handler = createFeedbackHandler({
+  adapters: [slackAdapter({ webhookUrl: process.env.SLACK_WEBHOOK! })],
+  rateLimit: { max: 10, windowMs: 60_000 },
+  allowedOrigins: ['https://myapp.com'],
+})
+
+export const POST = handler.POST
+export const GET = handler.GET
+```
+
+### Express
+
+```ts
+import express from 'express'
+import { createExpressRouter } from '@microsoft/snapfeed-server/express'
+import { openDb } from '@microsoft/snapfeed-server'
+
+const app = express()
+app.use(express.json())
+app.use(createExpressRouter(openDb({ path: './feedback.db' })))
+app.listen(3000)
+```
+
+---
+
+## Server Security
+
+The standalone Hono server includes rate limiting by default (60 req/min).
+For custom setups, use the security middleware individually:
+
+```ts
+import { snapfeedRoutes, openDb } from '@microsoft/snapfeed-server'
+import { rateLimit, originAllowlist, payloadLimits } from '@microsoft/snapfeed-server/security'
+import { Hono } from 'hono'
+
+const app = new Hono()
+
+// Rate limit: 30 requests per minute per IP
+app.use('/api/*', rateLimit({ max: 30, windowMs: 60_000 }))
+
+// Only accept requests from your domain
+app.use('/api/*', originAllowlist({ origins: ['https://myapp.com'] }))
+
+// Limit payload sizes (10KB text, 5MB screenshots)
+app.use('/api/*', payloadLimits({ maxPayloadBytes: 10_000, maxScreenshotBytes: 5_242_880 }))
+
+app.route('/', snapfeedRoutes(openDb({ path: './feedback.db' })))
+```
 
 ---
 

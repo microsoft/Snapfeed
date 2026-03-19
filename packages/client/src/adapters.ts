@@ -4,6 +4,11 @@
 
 import type { AdapterResult, FeedbackAdapter, TelemetryEvent } from './types.js'
 
+// Re-export all adapters from this file for convenience
+export { type GitHubAdapterOptions, githubAdapter } from './adapters/github.js'
+export { type SlackAdapterOptions, slackAdapter } from './adapters/slack.js'
+export { type TelegramAdapterOptions, telegramAdapter } from './adapters/telegram.js'
+
 /** Console adapter — logs feedback to the developer console. */
 export function consoleAdapter(): FeedbackAdapter {
   return {

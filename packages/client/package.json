@@ -3,16 +3,23 @@
   "version": "0.1.0",
   "description": "UI feedback & telemetry for agentic workflows — capture clicks, errors, navigation, and visual feedback with framework-agnostic plugin support",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
+    },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "import": "./dist/adapters.js",
+      "require": "./dist/adapters.cjs"
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -27,6 +34,7 @@
   },
   "devDependencies": {
     "html2canvas": "^1.4.1",
+    "tsup": "^8.5.1",
     "typescript": "^5.4.0",
     "vitest": "^4.1.0"
   },
@@ -40,7 +48,10 @@
     "ui",
     "agentic",
     "screenshot",
-    "plugin"
+    "plugin",
+    "github",
+    "slack",
+    "telegram"
   ],
   "license": "MIT"
 }

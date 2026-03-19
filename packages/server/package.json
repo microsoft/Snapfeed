@@ -3,19 +3,36 @@
   "version": "0.1.0",
   "description": "Reference backend for @microsoft/snapfeed — Hono + SQLite telemetry server",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
+    },
+    "./nextjs": {
+      "types": "./dist/integrations/nextjs.d.ts",
+      "import": "./dist/integrations/nextjs.js",
+      "require": "./dist/integrations/nextjs.cjs"
+    },
+    "./express": {
+      "types": "./dist/integrations/express.d.ts",
+      "import": "./dist/integrations/express.js",
+      "require": "./dist/integrations/express.cjs"
+    },
+    "./security": {
+      "types": "./dist/security.d.ts",
+      "import": "./dist/security.js",
+      "require": "./dist/security.cjs"
     }
   },
   "bin": {
     "snapfeed-server": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
     "clean": "rm -rf dist",
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
@@ -28,15 +45,20 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.19.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.0"
   },
   "peerDependencies": {
-    "@microsoft/snapfeed": "^0.1.0"
+    "@microsoft/snapfeed": "^0.1.0",
+    "express": "^4.0.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "@microsoft/snapfeed": {
+      "optional": true
+    },
+    "express": {
       "optional": true
     }
   },
@@ -49,7 +71,9 @@
     "telemetry",
     "server",
     "hono",
-    "sqlite"
+    "sqlite",
+    "nextjs",
+    "express"
   ],
   "license": "MIT"
 }
