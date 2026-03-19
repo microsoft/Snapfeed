@@ -1,0 +1,46 @@
+{
+  "name": "@microsoft/snapfeed",
+  "version": "0.1.0",
+  "description": "UI feedback & telemetry for agentic workflows — capture clicks, errors, navigation, and visual feedback with framework-agnostic plugin support",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "html2canvas": "^1.4.0"
+  },
+  "peerDependenciesMeta": {
+    "html2canvas": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "html2canvas": "^1.4.1",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.0"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "telemetry",
+    "feedback",
+    "ui",
+    "agentic",
+    "screenshot",
+    "plugin"
+  ],
+  "license": "MIT"
+}

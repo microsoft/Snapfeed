@@ -1,0 +1,12 @@
+{
+  "name": "snapfeed-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "clean": "npm run clean --workspaces",
+    "test": "npm run test --workspaces --if-present"
+  }
+}

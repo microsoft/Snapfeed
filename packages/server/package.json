@@ -1,0 +1,55 @@
+{
+  "name": "@microsoft/snapfeed-server",
+  "version": "0.1.0",
+  "description": "Reference backend for @microsoft/snapfeed — Hono + SQLite telemetry server",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "snapfeed-server": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "better-sqlite3": "^11.0.0",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.0"
+  },
+  "peerDependencies": {
+    "@microsoft/snapfeed": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@microsoft/snapfeed": {
+      "optional": true
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "snapfeed",
+    "telemetry",
+    "server",
+    "hono",
+    "sqlite"
+  ],
+  "license": "MIT"
+}
