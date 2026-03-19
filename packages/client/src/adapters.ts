@@ -4,8 +4,10 @@
 
 import type { AdapterResult, FeedbackAdapter, TelemetryEvent } from './types.js'
 
+export { type DiscordAdapterOptions, discordAdapter } from './adapters/discord.js'
 // Re-export all adapters from this file for convenience
 export { type GitHubAdapterOptions, githubAdapter } from './adapters/github.js'
+export { type LinearAdapterOptions, linearAdapter } from './adapters/linear.js'
 export { type SlackAdapterOptions, slackAdapter } from './adapters/slack.js'
 export { type TelegramAdapterOptions, telegramAdapter } from './adapters/telegram.js'
 
