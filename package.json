@@ -9,6 +9,8 @@
     "clean": "npm run clean --workspaces",
     "lint": "npx biome ci .",
     "lint:fix": "npx biome check --write .",
+    "storybook:client": "npm run -w packages/client storybook",
+    "storybook:client:build": "npm run -w packages/client storybook:build",
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {

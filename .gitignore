@@ -1,4 +1,5 @@
 node_modules/
 dist/
+storybook-static/
 *.tsbuildinfo
 .DS_Store
