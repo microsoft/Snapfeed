@@ -4,6 +4,8 @@
  * Tools: pen, rectangle, arrow, highlighter.
  */
 
+import { getSnapfeedTheme } from './ui-theme.js'
+
 type AnnotationTool = 'pen' | 'rect' | 'arrow' | 'highlighter'
 
 interface Point {
@@ -94,6 +96,7 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
     let activeTool: AnnotationTool = 'pen'
     let activeColor = '#EF4444'
     let drawing = false
+    const theme = getSnapfeedTheme()
 
     // Load image to get dimensions
     const img = new Image()
@@ -106,11 +109,12 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
 
       // Overlay
       const overlay = document.createElement('div')
+      overlay.dataset.snapfeedOverlay = 'annotation-canvas'
       overlay.style.cssText = `
-        position:fixed; inset:0; z-index:100000; background:rgba(0,0,0,0.85);
+        position:fixed; inset:0; z-index:100000; background:${theme.overlayBackdrop};
         display:flex; flex-direction:column; align-items:center; justify-content:center;
         gap:12px; padding:16px; box-sizing:border-box;
-        font-family:-apple-system,sans-serif; font-size:13px;
+        font-family:${theme.fontFamily}; font-size:13px;
       `
       for (const evt of [
         'keydown',
@@ -127,7 +131,8 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
       // Toolbar
       const toolbar = document.createElement('div')
       toolbar.style.cssText = `
-        background:#2C2C2E; border:1px solid rgba(255,255,255,0.12); border-radius:12px;
+        background:${theme.toolbarBackground}; border:1px solid ${theme.toolbarBorder}; border-radius:${theme.toolbarRadius};
+        box-shadow:${theme.toolbarShadow}; color:${theme.panelText};
         padding:8px 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
         max-width:${displayW}px; width:100%; box-sizing:border-box;
       `
@@ -137,7 +142,7 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
         btn.textContent = text
         btn.style.cssText = `
           height:32px; border-radius:8px; border:2px solid transparent; background:transparent;
-          cursor:pointer; font-size:14px; padding:0 8px; color:#F2F2F7; font-family:inherit;
+          cursor:pointer; font-size:14px; padding:0 8px; color:${theme.buttonText}; font-family:inherit;
           ${style ?? ''}
         `
         btn.onclick = onClick
@@ -151,22 +156,21 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
           activeTool = t.id
           toolBtns.forEach((b, i) => {
             b.style.border =
-              TOOLS[i].id === activeTool ? '2px solid #89b4fa' : '2px solid transparent'
-            b.style.background =
-              TOOLS[i].id === activeTool ? 'rgba(137,180,250,0.15)' : 'transparent'
+              TOOLS[i].id === activeTool ? `2px solid ${theme.accent}` : '2px solid transparent'
+            b.style.background = TOOLS[i].id === activeTool ? theme.accentSoft : 'transparent'
           })
         })
         btn.title = t.title
         toolBtns.push(btn)
         toolbar.appendChild(btn)
       }
-      toolBtns[0].style.border = '2px solid #89b4fa'
-      toolBtns[0].style.background = 'rgba(137,180,250,0.15)'
+      toolBtns[0].style.border = `2px solid ${theme.accent}`
+      toolBtns[0].style.background = theme.accentSoft
 
       // Separator
       const sep = () => {
         const d = document.createElement('div')
-        d.style.cssText = 'width:1px;height:24px;background:rgba(255,255,255,0.12);flex-shrink:0;'
+        d.style.cssText = `width:1px;height:24px;background:${theme.separator};flex-shrink:0;`
         return d
       }
       toolbar.appendChild(sep())
@@ -175,13 +179,13 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
       for (const c of COLORS) {
         const dot = document.createElement('button')
         dot.style.cssText = `
-          width:18px; height:18px; border-radius:50%; border:2px solid ${c === activeColor ? '#89b4fa' : 'rgba(255,255,255,0.25)'};
+          width:18px; height:18px; border-radius:50%; border:2px solid ${c === activeColor ? theme.accent : theme.buttonBorder};
           background:${c}; cursor:pointer; padding:0; flex-shrink:0;
         `
         dot.onclick = () => {
           activeColor = c
           toolbar.querySelectorAll<HTMLElement>('[data-color-dot]').forEach((d) => {
-            d.style.border = `2px solid ${d.dataset.colorDot === c ? '#89b4fa' : 'rgba(255,255,255,0.25)'}`
+            d.style.border = `2px solid ${d.dataset.colorDot === c ? theme.accent : theme.buttonBorder}`
           })
         }
         dot.dataset.colorDot = c
@@ -198,7 +202,7 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
             strokes.pop()
             redraw()
           },
-          'border:1px solid rgba(255,255,255,0.12);font-size:12px;',
+          `border:1px solid ${theme.buttonBorder};font-size:12px;`,
         ),
       )
 
@@ -215,7 +219,7 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
             cleanup()
             resolve(null)
           },
-          'border:1px solid rgba(255,255,255,0.12);font-size:12px;',
+          `border:1px solid ${theme.buttonBorder};font-size:12px;`,
         ),
       )
 
@@ -235,7 +239,7 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
             cleanup()
             resolve(dataUrl.split(',')[1] || null)
           },
-          'background:#89b4fa;color:#1e1e2e;font-weight:600;font-size:12px;border:none;',
+          `background:${theme.accent};color:${theme.accentContrast};font-weight:600;font-size:12px;border:none;`,
         ),
       )
 
@@ -243,7 +247,7 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
 
       // Canvas container
       const container = document.createElement('div')
-      container.style.cssText = `position:relative;width:${displayW}px;height:${displayH}px;border-radius:8px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.5);`
+      container.style.cssText = `position:relative;width:${displayW}px;height:${displayH}px;border-radius:${theme.canvasRadius};overflow:hidden;box-shadow:${theme.canvasShadow};`
 
       // Background image
       const bgImg = document.createElement('img')

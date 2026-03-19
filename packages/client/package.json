@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "UI feedback & telemetry for agentic workflows — capture clicks, errors, navigation, and visual feedback with framework-agnostic plugin support",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,6 +24,8 @@
   "scripts": {
     "build": "tsup",
     "clean": "rm -rf dist",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -33,9 +38,12 @@
     }
   },
   "devDependencies": {
+    "@storybook/html-vite": "^10.3.1",
     "html2canvas": "^1.4.1",
+    "storybook": "^10.3.1",
     "tsup": "^8.5.1",
     "typescript": "^5.4.0",
+    "vite": "^8.0.1",
     "vitest": "^4.1.0"
   },
   "files": [

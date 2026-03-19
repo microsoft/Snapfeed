@@ -1,6 +1,9 @@
 {
   "name": "snapfeed-monorepo",
   "private": true,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "workspaces": [
     "packages/*"
   ],
@@ -9,6 +12,8 @@
     "clean": "npm run clean --workspaces",
     "lint": "npx biome ci .",
     "lint:fix": "npx biome check --write .",
+    "storybook:client": "npm run -w packages/client storybook",
+    "storybook:client:build": "npm run -w packages/client storybook:build",
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {

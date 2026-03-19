@@ -16,14 +16,20 @@ import { flush, push } from './queue.js'
 import { sanitizeDetail } from './sanitize.js'
 import type { FeedbackCategory, ResolvedConfig } from './types.js'
 import { FEEDBACK_CATEGORIES } from './types.js'
+import { getSnapfeedTheme } from './ui-theme.js'
 
 let feedbackOverlay: HTMLDivElement | null = null
 let pendingScreenshot: Promise<string | null> | null = null
 let currentConfig: ResolvedConfig | null = null
 
+export function dismissFeedbackDialog(): void {
+  feedbackOverlay?.remove()
+  feedbackOverlay = null
+}
+
 // html2canvas is a peer dependency — loaded lazily
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let html2canvasFn: ((el: HTMLElement, opts?: any) => Promise<HTMLCanvasElement>) | null = null
+let html2canvasFn: ((el: HTMLElement, opts?: unknown) => Promise<HTMLCanvasElement>) | null = null
 
 async function loadHtml2Canvas(): Promise<typeof html2canvasFn> {
   if (html2canvasFn) return html2canvasFn
@@ -191,10 +197,11 @@ async function captureScreenshot(clickX: number, clickY: number): Promise<string
 
 // ── Feedback dialog UI ───────────────────────────────────────────────
 
-function showFeedbackDialog(el: Element, x: number, y: number): void {
-  if (feedbackOverlay) feedbackOverlay.remove()
+export function showFeedbackDialog(el: Element, x: number, y: number): void {
+  dismissFeedbackDialog()
 
   const context = gatherContext(el)
+  const theme = getSnapfeedTheme()
 
   // Start capturing screenshot immediately (async, runs while user types)
   pendingScreenshot = captureScreenshot(x, y)
@@ -217,14 +224,15 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
   let selectedCategory: FeedbackCategory = 'bug'
 
   feedbackOverlay = document.createElement('div')
+  feedbackOverlay.dataset.snapfeedOverlay = 'feedback-dialog'
   feedbackOverlay.style.cssText = `
     position: fixed; z-index: 99999;
     left: ${Math.min(x, window.innerWidth - 380)}px;
     top: ${Math.min(y, window.innerHeight - 320)}px;
     width: 360px; padding: 12px;
-    background: #1e1e2e; color: #cdd6f4; border: 1px solid #585b70;
-    border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    font-family: -apple-system, sans-serif; font-size: 13px;
+    background: ${theme.panelBackground}; color: ${theme.panelText}; border: 1px solid ${theme.panelBorder};
+    border-radius: ${theme.panelRadius}; box-shadow: ${theme.panelShadow};
+    font-family: ${theme.fontFamily}; font-size: 13px;
   `
   // Stop ALL events from leaking out
   for (const evt of [
@@ -247,35 +255,35 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
   // Build category chips HTML
   const chipsHtml = FEEDBACK_CATEGORIES.map(
     (c) =>
-      `<button data-cat="${c.id}" style="padding:3px 10px; border-radius:12px; border:1px solid ${c.id === 'bug' ? '#89b4fa' : '#585b70'};
-      background:${c.id === 'bug' ? 'rgba(137,180,250,0.15)' : 'transparent'}; color:#cdd6f4; cursor:pointer;
+      `<button data-cat="${c.id}" style="padding:3px 10px; border-radius:12px; border:1px solid ${c.id === 'bug' ? theme.accent : theme.panelBorder};
+      background:${c.id === 'bug' ? theme.accentSoft : 'transparent'}; color:${theme.panelText}; cursor:pointer;
       font-size:12px; font-family:inherit; white-space:nowrap;">${c.emoji} ${c.label}</button>`,
   ).join('')
 
   feedbackOverlay.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
-      <span style="font-weight:600; color:#89b4fa">📝 Feedback</span>
-      <span style="color:#6c7086; font-size:10px; cursor:pointer" id="__sf_close">✕</span>
+      <span style="font-weight:600; color:${theme.accent}">📝 Feedback</span>
+      <span style="color:${theme.mutedText}; font-size:10px; cursor:pointer" id="__sf_close">✕</span>
     </div>
-    <div style="color:#6c7086; font-size:11px; margin-bottom:6px; line-height:1.4">
+    <div style="color:${theme.mutedText}; font-size:11px; margin-bottom:6px; line-height:1.4">
       <div style="margin-bottom:2px">${breadcrumb}</div>
       <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap"
         title="${targetLabel.replace(/"/g, '&quot;')}">→ ${targetLabel}</div>
     </div>
     <div id="__sf_chips" style="display:flex; gap:4px; margin-bottom:8px; flex-wrap:wrap">${chipsHtml}</div>
     <textarea id="__sf_text" rows="4" placeholder="What's wrong / what should change?"
-      style="width:100%; box-sizing:border-box; background:#313244; color:#cdd6f4; border:1px solid #585b70;
-             border-radius:4px; padding:8px; font-size:14px; resize:vertical; font-family:inherit;
+      style="width:100%; box-sizing:border-box; background:${theme.inputBackground}; color:${theme.inputText}; border:1px solid ${theme.inputBorder};
+             border-radius:${theme.panelRadius}; padding:8px; font-size:14px; resize:vertical; font-family:inherit;
              outline:none; min-height:80px;"
     ></textarea>
     <div style="display:flex; gap:6px; margin-top:8px; justify-content:flex-end; align-items:center">
-      <span style="color:#6c7086; font-size:10px; flex:1">⌘+Enter to send · Esc to cancel</span>
-      <button id="__sf_annotate" title="Annotate screenshot" style="padding:4px 8px; background:none; color:#6c7086; border:1px solid #585b70;
-              border-radius:4px; cursor:pointer; font-size:12px;">✏️</button>
-      <button id="__sf_cancel" style="padding:4px 12px; background:none; color:#6c7086; border:1px solid #585b70;
-              border-radius:4px; cursor:pointer; font-size:12px;">Cancel</button>
-      <button id="__sf_send" style="padding:4px 12px; background:#89b4fa; color:#1e1e2e; border:none;
-              border-radius:4px; cursor:pointer; font-weight:600; font-size:12px;">Send</button>
+      <span style="color:${theme.mutedText}; font-size:10px; flex:1">⌘+Enter to send · Esc to cancel</span>
+      <button id="__sf_annotate" title="Annotate screenshot" style="padding:4px 8px; background:none; color:${theme.mutedText}; border:1px solid ${theme.panelBorder};
+              border-radius:${theme.panelRadius}; cursor:pointer; font-size:12px;">✏️</button>
+      <button id="__sf_cancel" style="padding:4px 12px; background:none; color:${theme.mutedText}; border:1px solid ${theme.panelBorder};
+              border-radius:${theme.panelRadius}; cursor:pointer; font-size:12px;">Cancel</button>
+      <button id="__sf_send" style="padding:4px 12px; background:${theme.accent}; color:${theme.accentContrast}; border:none;
+              border-radius:${theme.panelRadius}; cursor:pointer; font-weight:600; font-size:12px;">Send</button>
     </div>
   `
   document.body.appendChild(feedbackOverlay)
@@ -288,8 +296,8 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
     selectedCategory = btn.dataset.cat as FeedbackCategory
     chipsContainer.querySelectorAll('button').forEach((b) => {
       const isActive = b.dataset.cat === selectedCategory
-      b.style.border = `1px solid ${isActive ? '#89b4fa' : '#585b70'}`
-      b.style.background = isActive ? 'rgba(137,180,250,0.15)' : 'transparent'
+      b.style.border = `1px solid ${isActive ? theme.accent : theme.panelBorder}`
+      b.style.background = isActive ? theme.accentSoft : 'transparent'
     })
   })
 
@@ -301,8 +309,7 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
   textarea.addEventListener('mousedown', () => setTimeout(focusTextarea, 0))
 
   const close = () => {
-    feedbackOverlay?.remove()
-    feedbackOverlay = null
+    dismissFeedbackDialog()
   }
 
   document.getElementById('__sf_cancel')!.onclick = close
