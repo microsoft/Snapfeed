@@ -28,12 +28,6 @@
     }
   },
   "files": {
-    "includes": [
-      "packages/**/*.ts",
-      "!packages/**/dist",
-      "examples/**/*.py",
-      "*.json",
-      "*.yml"
-    ]
+    "includes": ["packages/**/*.ts", "!packages/**/dist", "examples/**/*.py", "*.json", "*.yml"]
   }
 }

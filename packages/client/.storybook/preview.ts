@@ -1,14 +1,14 @@
-import type { Preview } from "@storybook/html";
+import type { Preview } from '@storybook/html'
 
 const preview: Preview = {
   parameters: {
-    layout: "fullscreen",
+    layout: 'fullscreen',
     options: {
       storySort: {
-        order: ["Snapfeed"],
+        order: ['Snapfeed'],
       },
     },
   },
-};
+}
 
-export default preview;
+export default preview
