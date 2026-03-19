@@ -8,14 +8,14 @@
  * 4. Pushes a 'feedback' telemetry event with context + screenshot
  */
 
-import type { ResolvedConfig, FeedbackCategory } from './types.js'
-import { FEEDBACK_CATEGORIES } from './types.js'
-import { getPath, getText, getLabel } from './helpers.js'
-import { enrichElement } from './plugins.js'
-import { push, flush } from './queue.js'
-import { getConsoleErrors } from './console-capture.js'
-import { sanitizeDetail } from './sanitize.js'
 import { showAnnotationCanvas } from './annotation.js'
+import { getConsoleErrors } from './console-capture.js'
+import { getLabel, getPath, getText } from './helpers.js'
+import { enrichElement } from './plugins.js'
+import { flush, push } from './queue.js'
+import { sanitizeDetail } from './sanitize.js'
+import type { FeedbackCategory, ResolvedConfig } from './types.js'
+import { FEEDBACK_CATEGORIES } from './types.js'
 
 let feedbackOverlay: HTMLDivElement | null = null
 let pendingScreenshot: Promise<string | null> | null = null
@@ -50,10 +50,10 @@ export function gatherContext(el: Element): Record<string, unknown> {
   // Plugin enrichment (React component names, file paths, etc.)
   const enrichment = enrichElement(el)
   if (enrichment) {
-    if (enrichment.componentName) ctx['component'] = enrichment.componentName
-    if (enrichment.fileName) ctx['source_file'] = enrichment.fileName
-    if (enrichment.lineNumber) ctx['source_line'] = enrichment.lineNumber
-    if (enrichment.columnNumber) ctx['source_column'] = enrichment.columnNumber
+    if (enrichment.componentName) ctx.component = enrichment.componentName
+    if (enrichment.fileName) ctx.source_file = enrichment.fileName
+    if (enrichment.lineNumber) ctx.source_line = enrichment.lineNumber
+    if (enrichment.columnNumber) ctx.source_column = enrichment.columnNumber
     // Spread any extra plugin data
     for (const [key, value] of Object.entries(enrichment)) {
       if (!['componentName', 'fileName', 'lineNumber', 'columnNumber'].includes(key)) {
@@ -70,8 +70,8 @@ export function gatherContext(el: Element): Record<string, unknown> {
         ctx[attr.name] = attr.value
       }
     }
-    if (cur.tagName === 'IMG' && !ctx['img_src']) {
-      ctx['img_src'] = (cur as HTMLImageElement).src.replace(window.location.origin, '')
+    if (cur.tagName === 'IMG' && !ctx.img_src) {
+      ctx.img_src = (cur as HTMLImageElement).src.replace(window.location.origin, '')
     }
     cur = cur.parentElement
   }
@@ -79,15 +79,17 @@ export function gatherContext(el: Element): Record<string, unknown> {
   // Capture any open dialog content
   const dialog = document.querySelector('[role="dialog"], .MuiDialog-root')
   if (dialog) {
-    ctx['dialog_open'] = true
+    ctx.dialog_open = true
     const title = dialog.querySelector('h2, h3, h4, h5, h6, [class*="title"]')
-    if (title) ctx['dialog_title'] = (title as HTMLElement).innerText?.trim().substring(0, 100)
+    if (title) ctx.dialog_title = (title as HTMLElement).innerText?.trim().substring(0, 100)
   }
 
   // Capture visible form/filter state (inputs, selects, checkboxes, sliders)
   const formState: Record<string, string> = {}
-  const inputs = document.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
-    'input:not([type="hidden"]):not([type="password"]), select, textarea, [role="combobox"], [role="slider"]'
+  const inputs = document.querySelectorAll<
+    HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+  >(
+    'input:not([type="hidden"]):not([type="password"]), select, textarea, [role="combobox"], [role="slider"]',
   )
   for (const inp of inputs) {
     // Skip invisible elements
@@ -95,7 +97,9 @@ export function gatherContext(el: Element): Record<string, unknown> {
     const label =
       inp.getAttribute('aria-label') ||
       inp.closest('[class*="FormControl"]')?.querySelector('label')?.textContent?.trim() ||
-      inp.name || inp.id || ''
+      inp.name ||
+      inp.id ||
+      ''
     if (!label) continue
     let value = ''
     if (inp instanceof HTMLInputElement && inp.type === 'checkbox') {
@@ -107,9 +111,9 @@ export function gatherContext(el: Element): Record<string, unknown> {
     }
     if (value) formState[label.substring(0, 40)] = value.substring(0, 100)
   }
-  if (Object.keys(formState).length > 0) ctx['form_state'] = formState
+  if (Object.keys(formState).length > 0) ctx.form_state = formState
 
-  ctx['url'] = window.location.pathname + window.location.search
+  ctx.url = window.location.pathname + window.location.search
 
   return ctx
 }
@@ -165,10 +169,14 @@ async function captureScreenshot(clickX: number, clickY: number): Promise<string
     ctx.arc(mx, my, 4, 0, Math.PI * 2)
     ctx.fill()
     ctx.beginPath()
-    ctx.moveTo(mx - 30, my); ctx.lineTo(mx - 8, my)
-    ctx.moveTo(mx + 8, my); ctx.lineTo(mx + 30, my)
-    ctx.moveTo(mx, my - 30); ctx.lineTo(mx, my - 8)
-    ctx.moveTo(mx, my + 8); ctx.lineTo(mx, my + 30)
+    ctx.moveTo(mx - 30, my)
+    ctx.lineTo(mx - 8, my)
+    ctx.moveTo(mx + 8, my)
+    ctx.lineTo(mx + 30, my)
+    ctx.moveTo(mx, my - 30)
+    ctx.lineTo(mx, my - 8)
+    ctx.moveTo(mx, my + 8)
+    ctx.lineTo(mx, my + 30)
     ctx.stroke()
 
     const quality = currentConfig.feedback.screenshotQuality
@@ -196,14 +204,14 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
   const page = window.location.pathname.split('/').filter(Boolean)
   crumbs.push(...page)
   if (context['data-feedback-context']) crumbs.push(context['data-feedback-context'] as string)
-  if (context['dialog_open']) crumbs.push('dialog')
+  if (context.dialog_open) crumbs.push('dialog')
   if (context['data-index'] != null) crumbs.push(`burst:${context['data-index']}`)
-  if (context['img_src']) {
-    const fname = (context['img_src'] as string).split('/').pop()?.split('?')[0]
+  if (context.img_src) {
+    const fname = (context.img_src as string).split('/').pop()?.split('?')[0]
     if (fname) crumbs.push(fname)
   }
   // Include component name from plugin enrichment
-  if (context['component']) crumbs.push(`<${context['component'] as string}>`)
+  if (context.component) crumbs.push(`<${context.component as string}>`)
   const breadcrumb = crumbs.join(' › ') || 'page'
 
   let selectedCategory: FeedbackCategory = 'bug'
@@ -219,18 +227,29 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
     font-family: -apple-system, sans-serif; font-size: 13px;
   `
   // Stop ALL events from leaking out
-  for (const evt of ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup',
-                      'click', 'pointerdown', 'pointerup', 'focusin', 'focusout']) {
+  for (const evt of [
+    'keydown',
+    'keyup',
+    'keypress',
+    'mousedown',
+    'mouseup',
+    'click',
+    'pointerdown',
+    'pointerup',
+    'focusin',
+    'focusout',
+  ]) {
     feedbackOverlay.addEventListener(evt, (e) => e.stopPropagation())
   }
 
   const targetLabel = ((context.label as string) || (context.tag as string) || '').substring(0, 60)
 
   // Build category chips HTML
-  const chipsHtml = FEEDBACK_CATEGORIES.map(c =>
-    `<button data-cat="${c.id}" style="padding:3px 10px; border-radius:12px; border:1px solid ${c.id === 'bug' ? '#89b4fa' : '#585b70'};
+  const chipsHtml = FEEDBACK_CATEGORIES.map(
+    (c) =>
+      `<button data-cat="${c.id}" style="padding:3px 10px; border-radius:12px; border:1px solid ${c.id === 'bug' ? '#89b4fa' : '#585b70'};
       background:${c.id === 'bug' ? 'rgba(137,180,250,0.15)' : 'transparent'}; color:#cdd6f4; cursor:pointer;
-      font-size:12px; font-family:inherit; white-space:nowrap;">${c.emoji} ${c.label}</button>`
+      font-size:12px; font-family:inherit; white-space:nowrap;">${c.emoji} ${c.label}</button>`,
   ).join('')
 
   feedbackOverlay.innerHTML = `
@@ -267,7 +286,7 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
     const btn = (e.target as HTMLElement).closest('button[data-cat]') as HTMLButtonElement | null
     if (!btn) return
     selectedCategory = btn.dataset.cat as FeedbackCategory
-    chipsContainer.querySelectorAll('button').forEach(b => {
+    chipsContainer.querySelectorAll('button').forEach((b) => {
       const isActive = b.dataset.cat === selectedCategory
       b.style.border = `1px solid ${isActive ? '#89b4fa' : '#585b70'}`
       b.style.background = isActive ? 'rgba(137,180,250,0.15)' : 'transparent'
@@ -281,7 +300,10 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
   setTimeout(focusTextarea, 150)
   textarea.addEventListener('mousedown', () => setTimeout(focusTextarea, 0))
 
-  const close = () => { feedbackOverlay?.remove(); feedbackOverlay = null }
+  const close = () => {
+    feedbackOverlay?.remove()
+    feedbackOverlay = null
+  }
 
   document.getElementById('__sf_cancel')!.onclick = close
   document.getElementById('__sf_close')!.onclick = close
@@ -292,7 +314,10 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
     const screenshot = await pendingScreenshot
     if (!screenshot) return
     feedbackOverlay!.style.display = 'none'
-    const annotated = await showAnnotationCanvas(screenshot, currentConfig.feedback.screenshotQuality)
+    const annotated = await showAnnotationCanvas(
+      screenshot,
+      currentConfig.feedback.screenshotQuality,
+    )
     feedbackOverlay!.style.display = ''
     if (annotated) {
       pendingScreenshot = Promise.resolve(annotated)
@@ -301,14 +326,17 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
 
   const submit = async () => {
     const text = textarea.value.trim()
-    if (!text) { close(); return }
+    if (!text) {
+      close()
+      return
+    }
     const screenshot = await pendingScreenshot
 
     // Enrich context with console errors and user identity
     const consoleErrors = getConsoleErrors()
-    if (consoleErrors.length > 0) context['console_errors'] = consoleErrors
-    if (currentConfig?.user) context['user'] = currentConfig.user
-    context['category'] = selectedCategory
+    if (consoleErrors.length > 0) context.console_errors = consoleErrors
+    if (currentConfig?.user) context.user = currentConfig.user
+    context.category = selectedCategory
 
     // Sanitize before sending
     const sanitizedContext = sanitizeDetail(context as Record<string, unknown>)
@@ -318,25 +346,46 @@ function showFeedbackDialog(el: Element, x: number, y: number): void {
 
     // Also send to adapters if configured
     if (currentConfig?.adapters.length) {
-      const event = { session_id: '', seq: 0, ts: new Date().toISOString(), event_type: 'feedback', page: window.location.pathname, target: text, detail: sanitizedContext, screenshot }
+      const event = {
+        session_id: '',
+        seq: 0,
+        ts: new Date().toISOString(),
+        event_type: 'feedback',
+        page: window.location.pathname,
+        target: text,
+        detail: sanitizedContext,
+        screenshot,
+      }
       for (const adapter of currentConfig.adapters) {
-        try { adapter.send(event) } catch { /* adapter errors should not break feedback */ }
+        try {
+          adapter.send(event)
+        } catch {
+          /* adapter errors should not break feedback */
+        }
       }
     }
 
-    const sizeKb = screenshot ? Math.round(screenshot.length * 0.75 / 1024) : 0
-    const catEmoji = FEEDBACK_CATEGORIES.find(c => c.id === selectedCategory)?.emoji ?? ''
+    const sizeKb = screenshot ? Math.round((screenshot.length * 0.75) / 1024) : 0
+    const catEmoji = FEEDBACK_CATEGORIES.find((c) => c.id === selectedCategory)?.emoji ?? ''
     console.log(
       `%c📝 Feedback sent%c ${catEmoji} ${text}%c ${screenshot ? `(+${sizeKb}KB screenshot)` : '(no screenshot)'}`,
-      'color: #a6e3a1; font-weight: bold', 'color: #cdd6f4', 'color: #6c7086',
+      'color: #a6e3a1; font-weight: bold',
+      'color: #cdd6f4',
+      'color: #6c7086',
     )
     close()
   }
 
   document.getElementById('__sf_send')!.onclick = submit
   textarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit() }
-    if (e.key === 'Escape') { e.preventDefault(); close() }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      submit()
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      close()
+    }
   })
 }
 

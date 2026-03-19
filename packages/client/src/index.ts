@@ -14,31 +14,35 @@
  *   registerPlugin({ name: 'react', enrichElement: (el) => ({ componentName: '...' }) })
  */
 
-import type { SnapfeedConfig, SnapfeedPlugin, ElementEnrichment } from './types.js'
-import { resolveConfig } from './types.js'
-import { getLabel, getPath } from './helpers.js'
-import { enrichElement } from './plugins.js'
-import { getSessionId, push, flush, startFlushing, stopFlushing, getQueue } from './queue.js'
-import { handleCtrlClick, gatherContext, initFeedback } from './feedback.js'
-import { registerPlugin, unregisterPlugin, getPluginNames, clearPlugins } from './plugins.js'
 import { startCapturing, stopCapturing } from './console-capture.js'
+import { handleCtrlClick, initFeedback } from './feedback.js'
+import { getLabel, getPath } from './helpers.js'
+import { clearPlugins, enrichElement, getPluginNames, registerPlugin } from './plugins.js'
+import { flush, getQueue, getSessionId, push, startFlushing, stopFlushing } from './queue.js'
 import { sanitizeDetail } from './sanitize.js'
+import type { SnapfeedConfig } from './types.js'
+import { resolveConfig } from './types.js'
 
+export { consoleAdapter, webhookAdapter } from './adapters.js'
+export { getConsoleErrors } from './console-capture.js'
+export { gatherContext } from './feedback.js'
+export { describeElement, getLabel, getPath, getText } from './helpers.js'
+export { enrichElement, getPluginNames, registerPlugin, unregisterPlugin } from './plugins.js'
+export { flush, getSessionId, push } from './queue.js'
+export { sanitize, sanitizeDetail } from './sanitize.js'
 // Re-export public API
 export type {
-  SnapfeedConfig, SnapfeedPlugin, ElementEnrichment, TelemetryEvent,
-  FeedbackConfig, FeedbackCategory, SnapfeedUser,
-  FeedbackAdapter, AdapterResult,
+  AdapterResult,
+  ElementEnrichment,
+  FeedbackAdapter,
+  FeedbackCategory,
+  FeedbackConfig,
+  SnapfeedConfig,
+  SnapfeedPlugin,
+  SnapfeedUser,
+  TelemetryEvent,
 } from './types.js'
 export { FEEDBACK_CATEGORIES } from './types.js'
-export { registerPlugin, unregisterPlugin, getPluginNames } from './plugins.js'
-export { getSessionId, push, flush } from './queue.js'
-export { gatherContext } from './feedback.js'
-export { getLabel, getPath, getText, describeElement } from './helpers.js'
-export { enrichElement } from './plugins.js'
-export { consoleAdapter, webhookAdapter } from './adapters.js'
-export { sanitize, sanitizeDetail } from './sanitize.js'
-export { getConsoleErrors } from './console-capture.js'
 
 let initialized = false
 let originalFetch: typeof fetch | null = null
@@ -63,9 +67,9 @@ function handleClick(e: MouseEvent): void {
   // Plugin enrichment
   const pluginCtx = enrichElement(el)
   if (pluginCtx) {
-    if (pluginCtx.componentName) detail['component'] = pluginCtx.componentName
-    if (pluginCtx.fileName) detail['source_file'] = pluginCtx.fileName
-    if (pluginCtx.lineNumber) detail['source_line'] = pluginCtx.lineNumber
+    if (pluginCtx.componentName) detail.component = pluginCtx.componentName
+    if (pluginCtx.fileName) detail.source_file = pluginCtx.fileName
+    if (pluginCtx.lineNumber) detail.source_line = pluginCtx.lineNumber
   }
 
   // Sanitize before sending
@@ -199,11 +203,11 @@ export function initSnapfeed(config: SnapfeedConfig = {}): () => void {
     window.addEventListener('popstate', handleNavigation)
     const origPush = history.pushState.bind(history)
     const origReplace = history.replaceState.bind(history)
-    history.pushState = function (...args) {
+    history.pushState = (...args) => {
       origPush(...args)
       handleNavigation()
     }
-    history.replaceState = function (...args) {
+    history.replaceState = (...args) => {
       origReplace(...args)
       handleNavigation()
     }
@@ -220,7 +224,10 @@ export function initSnapfeed(config: SnapfeedConfig = {}): () => void {
   }
 
   // Flush on page unload
-  const onUnload = () => { flush(); stopFlushing() }
+  const onUnload = () => {
+    flush()
+    stopFlushing()
+  }
   window.addEventListener('beforeunload', onUnload)
   cleanupFns.push(() => window.removeEventListener('beforeunload', onUnload))
 

@@ -30,7 +30,7 @@ export function sanitizeDetail(detail: Record<string, unknown>): Record<string, 
     if (typeof value === 'string') {
       cleaned[key] = sanitize(value)
     } else if (Array.isArray(value)) {
-      cleaned[key] = value.map(v => typeof v === 'string' ? sanitize(v) : v)
+      cleaned[key] = value.map((v) => (typeof v === 'string' ? sanitize(v) : v))
     } else {
       cleaned[key] = value
     }

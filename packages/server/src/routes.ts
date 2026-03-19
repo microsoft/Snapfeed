@@ -5,9 +5,9 @@
  * Ported from the Python FastAPI implementation in kidstrophy.
  */
 
-import { Hono } from 'hono'
 import type Database from 'better-sqlite3'
-import type { TelemetryBatch, StoredEvent, SessionSummary } from './types.js'
+import { Hono } from 'hono'
+import type { SessionSummary, StoredEvent, TelemetryBatch } from './types.js'
 
 export function snapfeedRoutes(db: Database.Database): Hono {
   const app = new Hono()
@@ -66,10 +66,12 @@ export function snapfeedRoutes(db: Database.Database): Hono {
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
     params.push(limit)
 
-    const rows = db.prepare(
-      `SELECT id, session_id, seq, ts, event_type, page, target, detail_json
-       FROM ui_telemetry ${where} ORDER BY id DESC LIMIT ?`
-    ).all(...params) as StoredEvent[]
+    const rows = db
+      .prepare(
+        `SELECT id, session_id, seq, ts, event_type, page, target, detail_json
+       FROM ui_telemetry ${where} ORDER BY id DESC LIMIT ?`,
+      )
+      .all(...params) as StoredEvent[]
 
     return c.json(rows)
   })
@@ -78,7 +80,8 @@ export function snapfeedRoutes(db: Database.Database): Hono {
   app.get('/api/telemetry/sessions', (c) => {
     const limit = Math.min(Number(c.req.query('limit') ?? 20), 100)
 
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(`
       SELECT session_id,
              MIN(ts) as first_event,
              MAX(ts) as last_event,
@@ -88,7 +91,8 @@ export function snapfeedRoutes(db: Database.Database): Hono {
       GROUP BY session_id
       ORDER BY MAX(created_at) DESC
       LIMIT ?
-    `).all(limit) as SessionSummary[]
+    `)
+      .all(limit) as SessionSummary[]
 
     return c.json(rows)
   })
@@ -96,9 +100,9 @@ export function snapfeedRoutes(db: Database.Database): Hono {
   // ── GET /api/telemetry/events/:id/screenshot — serve JPEG ─────────
   app.get('/api/telemetry/events/:id/screenshot', (c) => {
     const eventId = Number(c.req.param('id'))
-    const row = db.prepare(
-      'SELECT screenshot FROM ui_telemetry WHERE id = ?'
-    ).get(eventId) as { screenshot: string | null } | undefined
+    const row = db.prepare('SELECT screenshot FROM ui_telemetry WHERE id = ?').get(eventId) as
+      | { screenshot: string | null }
+      | undefined
 
     if (!row?.screenshot) {
       return c.json({ error: 'No screenshot for this event' }, 404)

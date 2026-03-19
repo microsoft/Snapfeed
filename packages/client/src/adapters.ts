@@ -2,7 +2,7 @@
  * Built-in feedback adapters.
  */
 
-import type { FeedbackAdapter, AdapterResult, TelemetryEvent } from './types.js'
+import type { AdapterResult, FeedbackAdapter, TelemetryEvent } from './types.js'
 
 /** Console adapter — logs feedback to the developer console. */
 export function consoleAdapter(): FeedbackAdapter {
@@ -21,11 +21,14 @@ export function consoleAdapter(): FeedbackAdapter {
 }
 
 /** Webhook adapter — POSTs feedback to an arbitrary URL. */
-export function webhookAdapter(url: string, options?: {
-  headers?: Record<string, string>
-  /** Transform event before sending. */
-  transform?: (event: TelemetryEvent) => unknown
-}): FeedbackAdapter {
+export function webhookAdapter(
+  url: string,
+  options?: {
+    headers?: Record<string, string>
+    /** Transform event before sending. */
+    transform?: (event: TelemetryEvent) => unknown
+  },
+): FeedbackAdapter {
   return {
     name: 'webhook',
     async send(event: TelemetryEvent): Promise<AdapterResult> {

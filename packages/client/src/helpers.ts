@@ -11,7 +11,10 @@ export function describeElement(el: Element): string {
   if (el.id) parts.push(`#${el.id}`)
   const cls = el.className
   if (typeof cls === 'string' && cls) {
-    const meaningful = cls.split(/\s+/).filter((c) => !c.startsWith('css-')).slice(0, 3)
+    const meaningful = cls
+      .split(/\s+/)
+      .filter((c) => !c.startsWith('css-'))
+      .slice(0, 3)
     if (meaningful.length) parts.push(`.${meaningful.join('.')}`)
   }
   return parts.join('')
@@ -36,9 +39,11 @@ export function getText(el: Element): string {
 
 /** Best available label: aria-label → title → button text → innerText → tagName. */
 export function getLabel(el: Element): string {
-  return el.getAttribute('aria-label')
-    || el.getAttribute('title')
-    || (el.closest('button, a, [role="button"]') as HTMLElement)?.innerText?.trim().substring(0, 60)
-    || getText(el)
-    || el.tagName.toLowerCase()
+  return (
+    el.getAttribute('aria-label') ||
+    el.getAttribute('title') ||
+    (el.closest('button, a, [role="button"]') as HTMLElement)?.innerText?.trim().substring(0, 60) ||
+    getText(el) ||
+    el.tagName.toLowerCase()
+  )
 }

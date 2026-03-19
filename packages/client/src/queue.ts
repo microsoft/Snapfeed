@@ -5,12 +5,12 @@
  * On flush failure, events are put back for retry.
  */
 
-import type { TelemetryEvent, ResolvedConfig } from './types.js'
+import type { ResolvedConfig, TelemetryEvent } from './types.js'
 
 const SESSION_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
 let seq = 0
-let queue: TelemetryEvent[] = []
+const queue: TelemetryEvent[] = []
 let flushTimer: ReturnType<typeof setInterval> | null = null
 let config: ResolvedConfig | null = null
 
