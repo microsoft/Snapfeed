@@ -7,16 +7,16 @@
  *  - openDb()                 — create/open a SQLite database
  */
 
+import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { serve } from '@hono/node-server'
-import { openDb, type OpenDbOptions } from './db.js'
+import { openDb } from './db.js'
 import { snapfeedRoutes } from './routes.js'
 
-export { snapfeedRoutes } from './routes.js'
+export type { DatabaseType, OpenDbOptions } from './db.js'
 export { openDb } from './db.js'
-export type { OpenDbOptions, DatabaseType } from './db.js'
-export type { TelemetryEvent, TelemetryBatch, SessionSummary, StoredEvent } from './types.js'
+export { snapfeedRoutes } from './routes.js'
+export type { SessionSummary, StoredEvent, TelemetryBatch, TelemetryEvent } from './types.js'
 
 export interface ServerOptions {
   /** Port to listen on. Default: 8420 */

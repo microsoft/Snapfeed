@@ -1,0 +1,41 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+# Disabled until ready for official release.
+# To enable: remove the `if: false` from jobs below, and add NPM_TOKEN to repo secrets.
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: false
+    name: Publish packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Publish @microsoft/snapfeed
+        working-directory: packages/client
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @microsoft/snapfeed-server
+        working-directory: packages/server
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

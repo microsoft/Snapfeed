@@ -2,7 +2,7 @@
  * Plugin manager — register/unregister framework plugins and call enrichElement.
  */
 
-import type { SnapfeedPlugin, ElementEnrichment } from './types.js'
+import type { ElementEnrichment, SnapfeedPlugin } from './types.js'
 
 const plugins = new Map<string, SnapfeedPlugin>()
 

@@ -2,6 +2,11 @@
 
 # 🔭 snapfeed
 
+[![CI](https://github.com/microsoft/snapfeed/actions/workflows/ci.yml/badge.svg)](https://github.com/microsoft/snapfeed/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.4+-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18%20%7C%2020%20%7C%2022-43853d.svg)](https://nodejs.org/)
+
 **Close the loop between humans and AI agents.**
 
 Capture UI feedback — screenshots, clicks, errors, context — and feed it<br>

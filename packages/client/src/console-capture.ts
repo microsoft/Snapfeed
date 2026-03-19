@@ -21,7 +21,7 @@ export function startCapturing(max: number): void {
   originalConsoleError = console.error.bind(console)
 
   console.error = (...args: unknown[]) => {
-    const msg = args.map(a => typeof a === 'string' ? a : String(a)).join(' ')
+    const msg = args.map((a) => (typeof a === 'string' ? a : String(a))).join(' ')
     if (buffer.length >= maxErrors) buffer.shift()
     buffer.push(msg)
     originalConsoleError!(...args)

@@ -6,7 +6,10 @@
 
 type AnnotationTool = 'pen' | 'rect' | 'arrow' | 'highlighter'
 
-interface Point { x: number; y: number }
+interface Point {
+  x: number
+  y: number
+}
 
 interface Stroke {
   tool: AnnotationTool
@@ -36,17 +39,26 @@ function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke): void {
   ctx.lineWidth = s.lineWidth
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  if (s.tool === 'highlighter') { ctx.globalAlpha = 0.35 } else { ctx.globalAlpha = 1 }
+  if (s.tool === 'highlighter') {
+    ctx.globalAlpha = 0.35
+  } else {
+    ctx.globalAlpha = 1
+  }
 
   if (s.tool === 'pen' || s.tool === 'highlighter') {
-    if (s.points.length < 2) { ctx.restore(); return }
+    if (s.points.length < 2) {
+      ctx.restore()
+      return
+    }
     ctx.beginPath()
     ctx.moveTo(s.points[0].x, s.points[0].y)
     for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i].x, s.points[i].y)
     ctx.stroke()
   } else if (s.tool === 'rect' && s.start && s.end) {
-    const x = Math.min(s.start.x, s.end.x), y = Math.min(s.start.y, s.end.y)
-    const w = Math.abs(s.end.x - s.start.x), h = Math.abs(s.end.y - s.start.y)
+    const x = Math.min(s.start.x, s.end.x),
+      y = Math.min(s.start.y, s.end.y)
+    const w = Math.abs(s.end.x - s.start.x),
+      h = Math.abs(s.end.y - s.start.y)
     ctx.strokeRect(x, y, w, h)
   } else if (s.tool === 'arrow' && s.start && s.end) {
     const angle = Math.atan2(s.end.y - s.start.y, s.end.x - s.start.x)
@@ -57,9 +69,15 @@ function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke): void {
     ctx.stroke()
     ctx.beginPath()
     ctx.moveTo(s.end.x, s.end.y)
-    ctx.lineTo(s.end.x - headLen * Math.cos(angle - Math.PI / 7), s.end.y - headLen * Math.sin(angle - Math.PI / 7))
+    ctx.lineTo(
+      s.end.x - headLen * Math.cos(angle - Math.PI / 7),
+      s.end.y - headLen * Math.sin(angle - Math.PI / 7),
+    )
     ctx.moveTo(s.end.x, s.end.y)
-    ctx.lineTo(s.end.x - headLen * Math.cos(angle + Math.PI / 7), s.end.y - headLen * Math.sin(angle + Math.PI / 7))
+    ctx.lineTo(
+      s.end.x - headLen * Math.cos(angle + Math.PI / 7),
+      s.end.y - headLen * Math.sin(angle + Math.PI / 7),
+    )
     ctx.stroke()
   }
   ctx.restore()
@@ -80,7 +98,8 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
     // Load image to get dimensions
     const img = new Image()
     img.onload = () => {
-      const maxW = window.innerWidth * 0.9, maxH = window.innerHeight * 0.75
+      const maxW = window.innerWidth * 0.9,
+        maxH = window.innerHeight * 0.75
       const scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight)
       const displayW = Math.round(img.naturalWidth * scale)
       const displayH = Math.round(img.naturalHeight * scale)
@@ -93,7 +112,15 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
         gap:12px; padding:16px; box-sizing:border-box;
         font-family:-apple-system,sans-serif; font-size:13px;
       `
-      for (const evt of ['keydown', 'keyup', 'mousedown', 'mouseup', 'click', 'pointerdown', 'pointerup']) {
+      for (const evt of [
+        'keydown',
+        'keyup',
+        'mousedown',
+        'mouseup',
+        'click',
+        'pointerdown',
+        'pointerup',
+      ]) {
         overlay.addEventListener(evt, (e) => e.stopPropagation())
       }
 
@@ -123,8 +150,10 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
         const btn = createBtn(t.emoji, () => {
           activeTool = t.id
           toolBtns.forEach((b, i) => {
-            b.style.border = TOOLS[i].id === activeTool ? '2px solid #89b4fa' : '2px solid transparent'
-            b.style.background = TOOLS[i].id === activeTool ? 'rgba(137,180,250,0.15)' : 'transparent'
+            b.style.border =
+              TOOLS[i].id === activeTool ? '2px solid #89b4fa' : '2px solid transparent'
+            b.style.background =
+              TOOLS[i].id === activeTool ? 'rgba(137,180,250,0.15)' : 'transparent'
           })
         })
         btn.title = t.title
@@ -135,7 +164,11 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
       toolBtns[0].style.background = 'rgba(137,180,250,0.15)'
 
       // Separator
-      const sep = () => { const d = document.createElement('div'); d.style.cssText = 'width:1px;height:24px;background:rgba(255,255,255,0.12);flex-shrink:0;'; return d }
+      const sep = () => {
+        const d = document.createElement('div')
+        d.style.cssText = 'width:1px;height:24px;background:rgba(255,255,255,0.12);flex-shrink:0;'
+        return d
+      }
       toolbar.appendChild(sep())
 
       // Color dots
@@ -147,7 +180,7 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
         `
         dot.onclick = () => {
           activeColor = c
-          toolbar.querySelectorAll<HTMLElement>('[data-color-dot]').forEach(d => {
+          toolbar.querySelectorAll<HTMLElement>('[data-color-dot]').forEach((d) => {
             d.style.border = `2px solid ${d.dataset.colorDot === c ? '#89b4fa' : 'rgba(255,255,255,0.25)'}`
           })
         }
@@ -158,10 +191,16 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
       toolbar.appendChild(sep())
 
       // Undo
-      toolbar.appendChild(createBtn('↩ Undo', () => {
-        strokes.pop()
-        redraw()
-      }, 'border:1px solid rgba(255,255,255,0.12);font-size:12px;'))
+      toolbar.appendChild(
+        createBtn(
+          '↩ Undo',
+          () => {
+            strokes.pop()
+            redraw()
+          },
+          'border:1px solid rgba(255,255,255,0.12);font-size:12px;',
+        ),
+      )
 
       // Spacer
       const spacer = document.createElement('div')
@@ -169,21 +208,36 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
       toolbar.appendChild(spacer)
 
       // Cancel
-      toolbar.appendChild(createBtn('Cancel', () => { cleanup(); resolve(null) }, 'border:1px solid rgba(255,255,255,0.12);font-size:12px;'))
+      toolbar.appendChild(
+        createBtn(
+          'Cancel',
+          () => {
+            cleanup()
+            resolve(null)
+          },
+          'border:1px solid rgba(255,255,255,0.12);font-size:12px;',
+        ),
+      )
 
       // Done
-      toolbar.appendChild(createBtn('✓ Done', () => {
-        // Merge image + annotations
-        const mergeCanvas = document.createElement('canvas')
-        mergeCanvas.width = img.naturalWidth
-        mergeCanvas.height = img.naturalHeight
-        const mctx = mergeCanvas.getContext('2d')!
-        mctx.drawImage(img, 0, 0)
-        mctx.drawImage(canvas, 0, 0)
-        const dataUrl = mergeCanvas.toDataURL('image/jpeg', quality)
-        cleanup()
-        resolve(dataUrl.split(',')[1] || null)
-      }, 'background:#89b4fa;color:#1e1e2e;font-weight:600;font-size:12px;border:none;'))
+      toolbar.appendChild(
+        createBtn(
+          '✓ Done',
+          () => {
+            // Merge image + annotations
+            const mergeCanvas = document.createElement('canvas')
+            mergeCanvas.width = img.naturalWidth
+            mergeCanvas.height = img.naturalHeight
+            const mctx = mergeCanvas.getContext('2d')!
+            mctx.drawImage(img, 0, 0)
+            mctx.drawImage(canvas, 0, 0)
+            const dataUrl = mergeCanvas.toDataURL('image/jpeg', quality)
+            cleanup()
+            resolve(dataUrl.split(',')[1] || null)
+          },
+          'background:#89b4fa;color:#1e1e2e;font-weight:600;font-size:12px;border:none;',
+        ),
+      )
 
       overlay.appendChild(toolbar)
 
@@ -195,7 +249,8 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
       const bgImg = document.createElement('img')
       bgImg.src = `data:image/jpeg;base64,${imageBase64}`
       bgImg.draggable = false
-      bgImg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;user-select:none;'
+      bgImg.style.cssText =
+        'position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;user-select:none;'
       container.appendChild(bgImg)
 
       // Drawing canvas
@@ -210,7 +265,8 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
 
       function getPos(e: MouseEvent | TouchEvent): Point {
         const rect = canvas.getBoundingClientRect()
-        const sx = canvas.width / rect.width, sy = canvas.height / rect.height
+        const sx = canvas.width / rect.width,
+          sy = canvas.height / rect.height
         const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX
         const clientY = 'touches' in e ? (e.touches[0]?.clientY ?? 0) : e.clientY
         return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy }
@@ -222,21 +278,103 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
         if (currentStroke) drawStroke(ctx, currentStroke)
       }
 
-      canvas.addEventListener('mousedown', (e) => { e.preventDefault(); const p = getPos(e); currentStroke = { tool: activeTool, color: activeColor, lineWidth: lineWidth(activeTool), points: [p], start: p, end: p }; drawing = true })
-      canvas.addEventListener('mousemove', (e) => { if (!drawing || !currentStroke) return; e.preventDefault(); const p = getPos(e); currentStroke.points.push(p); currentStroke.end = p; redraw() })
-      canvas.addEventListener('mouseup', (e) => { if (!drawing || !currentStroke) return; e.preventDefault(); const p = getPos(e); currentStroke.points.push(p); currentStroke.end = p; strokes.push(currentStroke); currentStroke = null; drawing = false; redraw() })
-      canvas.addEventListener('mouseleave', () => { if (drawing && currentStroke) { strokes.push(currentStroke); currentStroke = null; drawing = false; redraw() } })
+      canvas.addEventListener('mousedown', (e) => {
+        e.preventDefault()
+        const p = getPos(e)
+        currentStroke = {
+          tool: activeTool,
+          color: activeColor,
+          lineWidth: lineWidth(activeTool),
+          points: [p],
+          start: p,
+          end: p,
+        }
+        drawing = true
+      })
+      canvas.addEventListener('mousemove', (e) => {
+        if (!drawing || !currentStroke) return
+        e.preventDefault()
+        const p = getPos(e)
+        currentStroke.points.push(p)
+        currentStroke.end = p
+        redraw()
+      })
+      canvas.addEventListener('mouseup', (e) => {
+        if (!drawing || !currentStroke) return
+        e.preventDefault()
+        const p = getPos(e)
+        currentStroke.points.push(p)
+        currentStroke.end = p
+        strokes.push(currentStroke)
+        currentStroke = null
+        drawing = false
+        redraw()
+      })
+      canvas.addEventListener('mouseleave', () => {
+        if (drawing && currentStroke) {
+          strokes.push(currentStroke)
+          currentStroke = null
+          drawing = false
+          redraw()
+        }
+      })
 
       // Touch support
-      canvas.addEventListener('touchstart', (e) => { e.preventDefault(); const p = getPos(e); currentStroke = { tool: activeTool, color: activeColor, lineWidth: lineWidth(activeTool), points: [p], start: p, end: p }; drawing = true }, { passive: false })
-      canvas.addEventListener('touchmove', (e) => { if (!drawing || !currentStroke) return; e.preventDefault(); const p = getPos(e); currentStroke.points.push(p); currentStroke.end = p; redraw() }, { passive: false })
-      canvas.addEventListener('touchend', (e) => { if (!drawing || !currentStroke) return; e.preventDefault(); strokes.push(currentStroke); currentStroke = null; drawing = false; redraw() }, { passive: false })
+      canvas.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault()
+          const p = getPos(e)
+          currentStroke = {
+            tool: activeTool,
+            color: activeColor,
+            lineWidth: lineWidth(activeTool),
+            points: [p],
+            start: p,
+            end: p,
+          }
+          drawing = true
+        },
+        { passive: false },
+      )
+      canvas.addEventListener(
+        'touchmove',
+        (e) => {
+          if (!drawing || !currentStroke) return
+          e.preventDefault()
+          const p = getPos(e)
+          currentStroke.points.push(p)
+          currentStroke.end = p
+          redraw()
+        },
+        { passive: false },
+      )
+      canvas.addEventListener(
+        'touchend',
+        (e) => {
+          if (!drawing || !currentStroke) return
+          e.preventDefault()
+          strokes.push(currentStroke)
+          currentStroke = null
+          drawing = false
+          redraw()
+        },
+        { passive: false },
+      )
 
       // Escape to cancel
-      const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') { cleanup(); resolve(null) } }
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          cleanup()
+          resolve(null)
+        }
+      }
       document.addEventListener('keydown', onKeyDown)
 
-      function cleanup() { document.removeEventListener('keydown', onKeyDown); overlay.remove() }
+      function cleanup() {
+        document.removeEventListener('keydown', onKeyDown)
+        overlay.remove()
+      }
 
       document.body.appendChild(overlay)
     }
