@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "UI feedback & telemetry for agentic workflows — capture clicks, errors, navigation, and visual feedback with framework-agnostic plugin support",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

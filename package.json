@@ -1,6 +1,9 @@
 {
   "name": "snapfeed-monorepo",
   "private": true,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "workspaces": [
     "packages/*"
   ],

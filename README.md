@@ -5,7 +5,7 @@
 [![CI](https://github.com/microsoft/snapfeed/actions/workflows/ci.yml/badge.svg)](https://github.com/microsoft/snapfeed/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4+-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18%20%7C%2020%20%7C%2022-43853d.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20.19%2B%20%7C%2022.12%2B-43853d.svg)](https://nodejs.org/)
 
 **Close the loop between humans and AI agents.**
 
@@ -22,7 +22,7 @@ straight back to the agent that built the interface.
 
 ## Why Snapfeed?
 
-AI agents can write UI code, but they can't *see* the result. Snapfeed gives
+AI agents can write UI code, but they can't _see_ the result. Snapfeed gives
 them eyes. Drop one line into your app and every interaction — clicks,
 navigation, errors, and annotated screenshots — flows into a structured
 telemetry feed that an agent (or a human) can query.
@@ -60,6 +60,8 @@ accumulates in a queue. An agent — or your dev team — triages and acts on it
 
 ## Quick Start
 
+Requires Node.js `20.19.0+` or `22.12.0+`.
+
 ### 1. Add the client (one line)
 
 ```bash
@@ -67,9 +69,9 @@ npm install @microsoft/snapfeed
 ```
 
 ```ts
-import { initSnapfeed } from '@microsoft/snapfeed'
+import { initSnapfeed } from "@microsoft/snapfeed";
 
-initSnapfeed()  // that's it — Cmd+Click to send feedback
+initSnapfeed(); // that's it — Cmd+Click to send feedback
 ```
 
 Snapfeed auto-captures clicks, navigation, errors, and API failures. No
@@ -94,11 +96,11 @@ uvicorn server:app --port 8420
 **Or mount into your own app:**
 
 ```ts
-import { snapfeedRoutes, openDb } from '@microsoft/snapfeed-server'
-import { Hono } from 'hono'
+import { snapfeedRoutes, openDb } from "@microsoft/snapfeed-server";
+import { Hono } from "hono";
 
-const app = new Hono()
-app.route('/', snapfeedRoutes(openDb({ path: './feedback.db' })))
+const app = new Hono();
+app.route("/", snapfeedRoutes(openDb({ path: "./feedback.db" })));
 ```
 
 ### 3. Query the feedback
@@ -121,15 +123,15 @@ curl localhost:8420/api/telemetry/events/42/screenshot --output feedback.jpg
 
 ## What Gets Captured
 
-| Event | Trigger | Detail |
-|-------|---------|--------|
-| `session_start` | `initSnapfeed()` | Viewport, URL, user agent, plugins |
-| `click` | Any click | Element tag, role, CSS path, coordinates, component name (via plugins) |
-| `feedback` | **Cmd+Click** | Annotated screenshot, user message, category, console errors, page context |
-| `navigation` | SPA route change | Path, hash, search params |
-| `error` | `window.onerror` | Message, filename, line, stack trace |
-| `api_error` | `fetch()` non-2xx | URL, status, method |
-| `network_error` | `fetch()` failure | URL, error message, method |
+| Event           | Trigger           | Detail                                                                     |
+| --------------- | ----------------- | -------------------------------------------------------------------------- |
+| `session_start` | `initSnapfeed()`  | Viewport, URL, user agent, plugins                                         |
+| `click`         | Any click         | Element tag, role, CSS path, coordinates, component name (via plugins)     |
+| `feedback`      | **Cmd+Click**     | Annotated screenshot, user message, category, console errors, page context |
+| `navigation`    | SPA route change  | Path, hash, search params                                                  |
+| `error`         | `window.onerror`  | Message, filename, line, stack trace                                       |
+| `api_error`     | `fetch()` non-2xx | URL, status, method                                                        |
+| `network_error` | `fetch()` failure | URL, error message, method                                                 |
 
 All events include `session_id`, `seq`, `ts`, `page`, and `target`.
 
@@ -137,11 +139,11 @@ All events include `session_id`, `seq`, `ts`, `page`, and `target`.
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| [`@microsoft/snapfeed`](./packages/client) | Client library — drop-in, framework-agnostic, zero config |
+| Package                                           | Description                                                |
+| ------------------------------------------------- | ---------------------------------------------------------- |
+| [`@microsoft/snapfeed`](./packages/client)        | Client library — drop-in, framework-agnostic, zero config  |
 | [`@microsoft/snapfeed-server`](./packages/server) | Reference backend — Hono + SQLite, pluggable or standalone |
-| [`examples/python`](./examples/python) | Python backend example — FastAPI + SQLite (~100 lines) |
+| [`examples/python`](./examples/python)            | Python backend example — FastAPI + SQLite (~100 lines)     |
 
 ---
 
@@ -149,12 +151,12 @@ All events include `session_id`, `seq`, `ts`, `page`, and `target`.
 
 Both the TypeScript and Python servers implement the same 4 endpoints:
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/telemetry/events` | Ingest a batch of events |
-| `GET` | `/api/telemetry/events` | Query events (`?session_id=`, `?event_type=`, `?limit=`) |
-| `GET` | `/api/telemetry/sessions` | List sessions with event counts |
-| `GET` | `/api/telemetry/events/:id/screenshot` | Serve feedback screenshot as JPEG |
+| Method | Endpoint                               | Description                                              |
+| ------ | -------------------------------------- | -------------------------------------------------------- |
+| `POST` | `/api/telemetry/events`                | Ingest a batch of events                                 |
+| `GET`  | `/api/telemetry/events`                | Query events (`?session_id=`, `?event_type=`, `?limit=`) |
+| `GET`  | `/api/telemetry/sessions`              | List sessions with event counts                          |
+| `GET`  | `/api/telemetry/events/:id/screenshot` | Serve feedback screenshot as JPEG                        |
 
 **Building your own backend?** Implement `POST /api/telemetry/events` accepting:
 
@@ -184,36 +186,36 @@ That's the only endpoint the client needs. The query endpoints are for you.
 ```ts
 initSnapfeed({
   // Where to send events (default: '/api/telemetry/events')
-  endpoint: 'http://localhost:8420/api/telemetry/events',
+  endpoint: "http://localhost:8420/api/telemetry/events",
 
   // Batch settings
-  flushIntervalMs: 3000,   // flush every 3s (default)
-  maxQueueSize: 500,       // ring buffer size (default)
+  flushIntervalMs: 3000, // flush every 3s (default)
+  maxQueueSize: 500, // ring buffer size (default)
 
   // What to capture
-  trackClicks: true,       // click events (default)
-  trackNavigation: true,   // SPA route changes (default)
-  trackErrors: true,       // window errors + unhandled rejections (default)
-  trackApiErrors: true,    // monkey-patch fetch() for non-2xx (default)
-  captureConsoleErrors: true,  // buffer recent console.error output (default)
+  trackClicks: true, // click events (default)
+  trackNavigation: true, // SPA route changes (default)
+  trackErrors: true, // window errors + unhandled rejections (default)
+  trackApiErrors: true, // monkey-patch fetch() for non-2xx (default)
+  captureConsoleErrors: true, // buffer recent console.error output (default)
 
   // Feedback dialog (Cmd+Click)
   feedback: {
     enabled: true,
     screenshotMaxWidth: 1200,
     screenshotQuality: 0.6,
-    annotations: true,     // let users draw on the screenshot
+    annotations: true, // let users draw on the screenshot
   },
 
   // Optional user identity
-  user: { name: 'Jane', email: 'jane@example.com' },
+  user: { name: "Jane", email: "jane@example.com" },
 
   // Adapters — fan out feedback to external systems
-  adapters: [webhookAdapter('https://hooks.slack.com/...')],
+  adapters: [webhookAdapter("https://hooks.slack.com/...")],
 
   // Plugins — framework-specific enrichment
   plugins: [reactPlugin()],
-})
+});
 ```
 
 Returns a teardown function: `const teardown = initSnapfeed(); teardown()`
@@ -226,15 +228,15 @@ Plugins enrich click and feedback events with framework-specific context
 (component names, source file locations, etc.).
 
 ```ts
-import { registerPlugin } from '@microsoft/snapfeed'
+import { registerPlugin } from "@microsoft/snapfeed";
 
 registerPlugin({
-  name: 'react',
+  name: "react",
   enrichElement(el) {
-    const fiber = (el as any).__reactFiber$  // simplified
-    return fiber ? { componentName: fiber.type?.name } : null
+    const fiber = (el as any).__reactFiber$; // simplified
+    return fiber ? { componentName: fiber.type?.name } : null;
   },
-})
+});
 ```
 
 When a plugin is active, click events include `component` and `source_file`
@@ -248,36 +250,44 @@ Adapters deliver feedback events to external systems in addition to the
 telemetry endpoint. They run on every feedback (Cmd+Click) event.
 
 ```ts
-import { consoleAdapter, webhookAdapter } from '@microsoft/snapfeed'
-import { githubAdapter, slackAdapter, telegramAdapter } from '@microsoft/snapfeed/adapters'
+import { consoleAdapter, webhookAdapter } from "@microsoft/snapfeed";
+import {
+  githubAdapter,
+  slackAdapter,
+  telegramAdapter,
+} from "@microsoft/snapfeed/adapters";
 
 initSnapfeed({
   adapters: [
-    consoleAdapter(),                          // log to dev console
-    webhookAdapter('https://my-api.com/hook'), // POST to a webhook
-    githubAdapter({                            // create GitHub issues
+    consoleAdapter(), // log to dev console
+    webhookAdapter("https://my-api.com/hook"), // POST to a webhook
+    githubAdapter({
+      // create GitHub issues
       token: process.env.GITHUB_TOKEN!,
-      owner: 'my-org', repo: 'my-app',
-      labels: ['feedback', 'from-user'],
+      owner: "my-org",
+      repo: "my-app",
+      labels: ["feedback", "from-user"],
     }),
-    slackAdapter({                             // post to Slack
+    slackAdapter({
+      // post to Slack
       webhookUrl: process.env.SLACK_WEBHOOK!,
     }),
-    telegramAdapter({                          // send to Telegram
+    telegramAdapter({
+      // send to Telegram
       botToken: process.env.TELEGRAM_BOT_TOKEN!,
       chatId: process.env.TELEGRAM_CHAT_ID!,
     }),
   ],
-})
+});
 ```
 
-| Adapter | Destination | Screenshot |
-|---------|-------------|------------|
-| `consoleAdapter()` | Dev console | — |
-| `webhookAdapter(url)` | Any HTTP endpoint | JSON payload |
-| `githubAdapter({...})` | GitHub Issues | Embedded in body |
-| `slackAdapter({...})` | Slack channel | Block Kit message |
-| `telegramAdapter({...})` | Telegram chat | Photo with caption |
+| Adapter                  | Destination       | Screenshot         |
+| ------------------------ | ----------------- | ------------------ |
+| `consoleAdapter()`       | Dev console       | —                  |
+| `webhookAdapter(url)`    | Any HTTP endpoint | JSON payload       |
+| `githubAdapter({...})`   | GitHub Issues     | Embedded in body   |
+| `slackAdapter({...})`    | Slack channel     | Block Kit message  |
+| `telegramAdapter({...})` | Telegram chat     | Photo with caption |
 
 Custom adapters implement `{ name: string, send(event): Promise<{ ok, error? }> }`.
 
@@ -289,30 +299,30 @@ Custom adapters implement `{ name: string, send(event): Promise<{ ok, error? }> 
 
 ```ts
 // app/api/feedback/route.ts
-import { createFeedbackHandler } from '@microsoft/snapfeed-server/nextjs'
-import { slackAdapter } from '@microsoft/snapfeed/adapters'
+import { createFeedbackHandler } from "@microsoft/snapfeed-server/nextjs";
+import { slackAdapter } from "@microsoft/snapfeed/adapters";
 
 const handler = createFeedbackHandler({
   adapters: [slackAdapter({ webhookUrl: process.env.SLACK_WEBHOOK! })],
   rateLimit: { max: 10, windowMs: 60_000 },
-  allowedOrigins: ['https://myapp.com'],
-})
+  allowedOrigins: ["https://myapp.com"],
+});
 
-export const POST = handler.POST
-export const GET = handler.GET
+export const POST = handler.POST;
+export const GET = handler.GET;
 ```
 
 ### Express
 
 ```ts
-import express from 'express'
-import { createExpressRouter } from '@microsoft/snapfeed-server/express'
-import { openDb } from '@microsoft/snapfeed-server'
+import express from "express";
+import { createExpressRouter } from "@microsoft/snapfeed-server/express";
+import { openDb } from "@microsoft/snapfeed-server";
 
-const app = express()
-app.use(express.json())
-app.use(createExpressRouter(openDb({ path: './feedback.db' })))
-app.listen(3000)
+const app = express();
+app.use(express.json());
+app.use(createExpressRouter(openDb({ path: "./feedback.db" })));
+app.listen(3000);
 ```
 
 ---
@@ -323,22 +333,29 @@ The standalone Hono server includes rate limiting by default (60 req/min).
 For custom setups, use the security middleware individually:
 
 ```ts
-import { snapfeedRoutes, openDb } from '@microsoft/snapfeed-server'
-import { rateLimit, originAllowlist, payloadLimits } from '@microsoft/snapfeed-server/security'
-import { Hono } from 'hono'
+import { snapfeedRoutes, openDb } from "@microsoft/snapfeed-server";
+import {
+  rateLimit,
+  originAllowlist,
+  payloadLimits,
+} from "@microsoft/snapfeed-server/security";
+import { Hono } from "hono";
 
-const app = new Hono()
+const app = new Hono();
 
 // Rate limit: 30 requests per minute per IP
-app.use('/api/*', rateLimit({ max: 30, windowMs: 60_000 }))
+app.use("/api/*", rateLimit({ max: 30, windowMs: 60_000 }));
 
 // Only accept requests from your domain
-app.use('/api/*', originAllowlist({ origins: ['https://myapp.com'] }))
+app.use("/api/*", originAllowlist({ origins: ["https://myapp.com"] }));
 
 // Limit payload sizes (10KB text, 5MB screenshots)
-app.use('/api/*', payloadLimits({ maxPayloadBytes: 10_000, maxScreenshotBytes: 5_242_880 }))
+app.use(
+  "/api/*",
+  payloadLimits({ maxPayloadBytes: 10_000, maxScreenshotBytes: 5_242_880 }),
+);
 
-app.route('/', snapfeedRoutes(openDb({ path: './feedback.db' })))
+app.route("/", snapfeedRoutes(openDb({ path: "./feedback.db" })));
 ```
 
 ---
