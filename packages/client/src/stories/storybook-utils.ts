@@ -1,10 +1,10 @@
-import type { ResolvedConfig } from "../types.js";
 import { showAnnotationCanvas } from "../annotation.js";
 import {
   dismissFeedbackDialog,
   initFeedback,
   showFeedbackDialog,
 } from "../feedback.js";
+import type { ResolvedConfig } from "../types.js";
 import { setSnapfeedStylePreset } from "../ui-theme.js";
 
 export type StoryPreset = "modern" | "windows90s" | "terminal";
@@ -47,9 +47,9 @@ async function createJpegFixture(
 
 export function cleanupStorySurface(): void {
   dismissFeedbackDialog();
-  document
-    .querySelectorAll("[data-snapfeed-overlay]")
-    .forEach((node) => node.remove());
+  document.querySelectorAll("[data-snapfeed-overlay]").forEach((node) => {
+    node.remove();
+  });
 }
 
 export function renderStoryShell(
