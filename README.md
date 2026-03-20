@@ -139,11 +139,48 @@ All events include `session_id`, `seq`, `ts`, `page`, and `target`.
 
 ## Packages
 
-| Package                                           | Description                                                |
-| ------------------------------------------------- | ---------------------------------------------------------- |
-| [`@microsoft/snapfeed`](./packages/client)        | Client library — drop-in, framework-agnostic, zero config  |
-| [`@microsoft/snapfeed-server`](./packages/server) | Reference backend — Hono + SQLite, pluggable or standalone |
-| [`examples/python`](./examples/python)            | Python backend example — FastAPI + SQLite (~100 lines)     |
+| Package                                           | Description                                                      |
+| ------------------------------------------------- | ---------------------------------------------------------------- |
+| [`@microsoft/snapfeed`](./packages/client)        | Client library — drop-in, framework-agnostic, zero config        |
+| [`@microsoft/snapfeed-server`](./packages/server) | Reference backend — Hono + SQLite, pluggable or standalone       |
+| [`examples/react`](./examples/react)              | React integration example and Playwright-backed verification lab |
+| [`examples/python`](./examples/python)            | Python backend example — FastAPI + SQLite (~100 lines)           |
+
+## React E2E Lab
+
+The repo now includes a dedicated React app for end-to-end validation in [`examples/react`](./examples/react). It is intentionally not a polished product demo. Its job is to exercise the full browser-to-database flow against a real SQLite file and make that flow easy to automate while also serving as a concrete React integration example.
+
+The app covers:
+
+- `session_start` on boot
+- `click` events from regular UI interaction
+- `navigation` events from SPA route changes
+- `api_error` and `network_error` via explicit failing fetch flows
+- `error` via uncaught errors and unhandled rejections
+- `feedback` via the real Cmd/Ctrl-click dialog with screenshot and context
+
+### Run it manually
+
+Use two terminals from the repo root:
+
+```bash
+npm run dev:react-e2e:server
+npm run dev:react-e2e
+```
+
+Open the Vite app URL that prints in the terminal. The API server listens on `http://127.0.0.1:8420` by default and writes to a local SQLite file under `examples/react/.tmp/`.
+
+### Run the automated browser suite
+
+```bash
+npm run test:react-e2e
+```
+
+The Playwright suite starts both the React app and the server harness, runs the browser flows, and verifies persisted DB rows.
+
+### Runtime note
+
+The harness prefers the real [`@microsoft/snapfeed-server`](./packages/server) implementation. If the local `better-sqlite3` native binding is unavailable, the dev server falls back to a `node:sqlite` compatibility server that preserves the same schema and endpoints so the React E2E workflow can still run on supported Node environments that expose the built-in SQLite module.
 
 ---
 

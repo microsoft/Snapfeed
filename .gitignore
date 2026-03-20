@@ -1,6 +1,9 @@
 node_modules/
 dist/
 storybook-static/
+.tmp/
+playwright-report/
+test-results/
 *.tsbuildinfo
 .DS_Store
 .vscode/
