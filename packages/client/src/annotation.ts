@@ -7,20 +7,31 @@
 import { getSnapfeedTheme } from './ui-theme.js'
 
 type AnnotationTool = 'pen' | 'rect' | 'arrow' | 'highlighter'
+type PathTool = 'pen' | 'highlighter'
+type ShapeTool = 'rect' | 'arrow'
 
 interface Point {
   x: number
   y: number
 }
 
-interface Stroke {
-  tool: AnnotationTool
+interface BaseStroke {
   color: string
   lineWidth: number
-  points: Point[]
-  start?: Point
-  end?: Point
 }
+
+interface PathStroke extends BaseStroke {
+  tool: PathTool
+  points: [Point, ...Point[]]
+}
+
+interface ShapeStroke extends BaseStroke {
+  tool: ShapeTool
+  start: Point
+  end: Point
+}
+
+type Stroke = PathStroke | ShapeStroke
 
 const TOOLS: Array<{ id: AnnotationTool; emoji: string; title: string }> = [
   { id: 'pen', emoji: '✏️', title: 'Free draw' },
@@ -32,56 +43,118 @@ const TOOLS: Array<{ id: AnnotationTool; emoji: string; title: string }> = [
 const COLORS = ['#EF4444', '#FBBF24', '#3B82F6', '#FFFFFF', '#111111']
 
 function lineWidth(tool: AnnotationTool): number {
-  return tool === 'highlighter' ? 16 : tool === 'pen' ? 2.5 : 3
+  switch (tool) {
+    case 'highlighter':
+      return 16
+    case 'pen':
+      return 2.5
+    case 'rect':
+    case 'arrow':
+      return 3
+  }
 }
 
-function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke): void {
-  ctx.save()
-  ctx.strokeStyle = s.color
-  ctx.lineWidth = s.lineWidth
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
-  if (s.tool === 'highlighter') {
-    ctx.globalAlpha = 0.35
-  } else {
-    ctx.globalAlpha = 1
+function assertNever(value: never): never {
+  throw new Error(`Unexpected annotation tool: ${String(value)}`)
+}
+
+function createStroke(tool: AnnotationTool, color: string, point: Point): Stroke {
+  const baseStroke = {
+    color,
+    lineWidth: lineWidth(tool),
   }
 
-  if (s.tool === 'pen' || s.tool === 'highlighter') {
-    if (s.points.length < 2) {
-      ctx.restore()
-      return
-    }
-    ctx.beginPath()
-    ctx.moveTo(s.points[0].x, s.points[0].y)
-    for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i].x, s.points[i].y)
-    ctx.stroke()
-  } else if (s.tool === 'rect' && s.start && s.end) {
-    const x = Math.min(s.start.x, s.end.x),
-      y = Math.min(s.start.y, s.end.y)
-    const w = Math.abs(s.end.x - s.start.x),
-      h = Math.abs(s.end.y - s.start.y)
-    ctx.strokeRect(x, y, w, h)
-  } else if (s.tool === 'arrow' && s.start && s.end) {
-    const angle = Math.atan2(s.end.y - s.start.y, s.end.x - s.start.x)
-    const headLen = Math.max(12, s.lineWidth * 5)
-    ctx.beginPath()
-    ctx.moveTo(s.start.x, s.start.y)
-    ctx.lineTo(s.end.x, s.end.y)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.moveTo(s.end.x, s.end.y)
-    ctx.lineTo(
-      s.end.x - headLen * Math.cos(angle - Math.PI / 7),
-      s.end.y - headLen * Math.sin(angle - Math.PI / 7),
-    )
-    ctx.moveTo(s.end.x, s.end.y)
-    ctx.lineTo(
-      s.end.x - headLen * Math.cos(angle + Math.PI / 7),
-      s.end.y - headLen * Math.sin(angle + Math.PI / 7),
-    )
-    ctx.stroke()
+  switch (tool) {
+    case 'pen':
+    case 'highlighter':
+      return {
+        ...baseStroke,
+        tool,
+        points: [point],
+      }
+    case 'rect':
+    case 'arrow':
+      return {
+        ...baseStroke,
+        tool,
+        start: point,
+        end: point,
+      }
+    default:
+      return assertNever(tool)
   }
+}
+
+function getCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('Annotation canvas context is unavailable')
+  }
+
+  return context
+}
+
+function isPathStroke(stroke: Stroke): stroke is PathStroke {
+  return stroke.tool === 'pen' || stroke.tool === 'highlighter'
+}
+
+function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke): void {
+  ctx.save()
+  ctx.strokeStyle = stroke.color
+  ctx.lineWidth = stroke.lineWidth
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.globalAlpha = stroke.tool === 'highlighter' ? 0.35 : 1
+
+  switch (stroke.tool) {
+    case 'pen':
+    case 'highlighter': {
+      if (stroke.points.length < 2) {
+        ctx.restore()
+        return
+      }
+
+      ctx.beginPath()
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y)
+      for (let index = 1; index < stroke.points.length; index++) {
+        ctx.lineTo(stroke.points[index].x, stroke.points[index].y)
+      }
+      ctx.stroke()
+      break
+    }
+    case 'rect': {
+      const x = Math.min(stroke.start.x, stroke.end.x)
+      const y = Math.min(stroke.start.y, stroke.end.y)
+      const width = Math.abs(stroke.end.x - stroke.start.x)
+      const height = Math.abs(stroke.end.y - stroke.start.y)
+      ctx.strokeRect(x, y, width, height)
+      break
+    }
+    case 'arrow': {
+      const angle = Math.atan2(stroke.end.y - stroke.start.y, stroke.end.x - stroke.start.x)
+      const headLength = Math.max(12, stroke.lineWidth * 5)
+      ctx.beginPath()
+      ctx.moveTo(stroke.start.x, stroke.start.y)
+      ctx.lineTo(stroke.end.x, stroke.end.y)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(stroke.end.x, stroke.end.y)
+      ctx.lineTo(
+        stroke.end.x - headLength * Math.cos(angle - Math.PI / 7),
+        stroke.end.y - headLength * Math.sin(angle - Math.PI / 7),
+      )
+      ctx.moveTo(stroke.end.x, stroke.end.y)
+      ctx.lineTo(
+        stroke.end.x - headLength * Math.cos(angle + Math.PI / 7),
+        stroke.end.y - headLength * Math.sin(angle + Math.PI / 7),
+      )
+      ctx.stroke()
+      break
+    }
+    default:
+      assertNever(stroke)
+  }
+
   ctx.restore()
 }
 
@@ -95,7 +168,7 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
     let currentStroke: Stroke | null = null
     let activeTool: AnnotationTool = 'pen'
     let activeColor = '#EF4444'
-    let drawing = false
+    let activePointerId: number | null = null
     const theme = getSnapfeedTheme()
 
     // Load image to get dimensions
@@ -149,23 +222,33 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
         return btn
       }
 
+      function updateToolButtons(buttons: HTMLButtonElement[]) {
+        buttons.forEach((button, index) => {
+          const isActive = TOOLS[index].id === activeTool
+          button.style.border = isActive ? `2px solid ${theme.accent}` : '2px solid transparent'
+          button.style.background = isActive ? theme.accentSoft : 'transparent'
+        })
+      }
+
+      function updateColorDots() {
+        toolbar.querySelectorAll<HTMLElement>('[data-color-dot]').forEach((dot) => {
+          const isActive = dot.dataset.colorDot === activeColor
+          dot.style.border = `2px solid ${isActive ? theme.accent : theme.buttonBorder}`
+        })
+      }
+
       // Tool buttons
       const toolBtns: HTMLButtonElement[] = []
       for (const t of TOOLS) {
         const btn = createBtn(t.emoji, () => {
           activeTool = t.id
-          toolBtns.forEach((b, i) => {
-            b.style.border =
-              TOOLS[i].id === activeTool ? `2px solid ${theme.accent}` : '2px solid transparent'
-            b.style.background = TOOLS[i].id === activeTool ? theme.accentSoft : 'transparent'
-          })
+          updateToolButtons(toolBtns)
         })
         btn.title = t.title
         toolBtns.push(btn)
         toolbar.appendChild(btn)
       }
-      toolBtns[0].style.border = `2px solid ${theme.accent}`
-      toolBtns[0].style.background = theme.accentSoft
+      updateToolButtons(toolBtns)
 
       // Separator
       const sep = () => {
@@ -184,13 +267,12 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
         `
         dot.onclick = () => {
           activeColor = c
-          toolbar.querySelectorAll<HTMLElement>('[data-color-dot]').forEach((d) => {
-            d.style.border = `2px solid ${d.dataset.colorDot === c ? theme.accent : theme.buttonBorder}`
-          })
+          updateColorDots()
         }
         dot.dataset.colorDot = c
         toolbar.appendChild(dot)
       }
+      updateColorDots()
 
       toolbar.appendChild(sep())
 
@@ -265,106 +347,79 @@ export function showAnnotationCanvas(imageBase64: string, quality: number): Prom
       container.appendChild(canvas)
       overlay.appendChild(container)
 
-      const ctx = canvas.getContext('2d')!
+      const ctx = getCanvasContext(canvas)
 
-      function getPos(e: MouseEvent | TouchEvent): Point {
+      function getPos(e: PointerEvent): Point {
         const rect = canvas.getBoundingClientRect()
-        const sx = canvas.width / rect.width,
-          sy = canvas.height / rect.height
-        const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX
-        const clientY = 'touches' in e ? (e.touches[0]?.clientY ?? 0) : e.clientY
-        return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy }
+        const scaleX = canvas.width / rect.width
+        const scaleY = canvas.height / rect.height
+        return {
+          x: (e.clientX - rect.left) * scaleX,
+          y: (e.clientY - rect.top) * scaleY,
+        }
       }
 
       function redraw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height)
-        for (const s of strokes) drawStroke(ctx, s)
+        for (const stroke of strokes) drawStroke(ctx, stroke)
         if (currentStroke) drawStroke(ctx, currentStroke)
       }
 
-      canvas.addEventListener('mousedown', (e) => {
-        e.preventDefault()
-        const p = getPos(e)
-        currentStroke = {
-          tool: activeTool,
-          color: activeColor,
-          lineWidth: lineWidth(activeTool),
-          points: [p],
-          start: p,
-          end: p,
+      function beginStroke(e: PointerEvent) {
+        if (activePointerId !== null) {
+          return
         }
-        drawing = true
-      })
-      canvas.addEventListener('mousemove', (e) => {
-        if (!drawing || !currentStroke) return
+
         e.preventDefault()
-        const p = getPos(e)
-        currentStroke.points.push(p)
-        currentStroke.end = p
+        activePointerId = e.pointerId
+        currentStroke = createStroke(activeTool, activeColor, getPos(e))
+        canvas.setPointerCapture(e.pointerId)
+      }
+
+      function updateStroke(e: PointerEvent) {
+        if (e.pointerId !== activePointerId || !currentStroke) {
+          return
+        }
+
+        e.preventDefault()
+        const point = getPos(e)
+
+        if (isPathStroke(currentStroke)) {
+          currentStroke.points.push(point)
+        } else {
+          currentStroke.end = point
+        }
+
         redraw()
-      })
-      canvas.addEventListener('mouseup', (e) => {
-        if (!drawing || !currentStroke) return
-        e.preventDefault()
-        const p = getPos(e)
-        currentStroke.points.push(p)
-        currentStroke.end = p
+      }
+
+      function finishStroke(e: PointerEvent) {
+        if (e.pointerId !== activePointerId || !currentStroke) {
+          return
+        }
+
+        updateStroke(e)
         strokes.push(currentStroke)
         currentStroke = null
-        drawing = false
+        activePointerId = null
+        canvas.releasePointerCapture(e.pointerId)
         redraw()
-      })
-      canvas.addEventListener('mouseleave', () => {
-        if (drawing && currentStroke) {
-          strokes.push(currentStroke)
-          currentStroke = null
-          drawing = false
-          redraw()
-        }
-      })
+      }
 
-      // Touch support
-      canvas.addEventListener(
-        'touchstart',
-        (e) => {
-          e.preventDefault()
-          const p = getPos(e)
-          currentStroke = {
-            tool: activeTool,
-            color: activeColor,
-            lineWidth: lineWidth(activeTool),
-            points: [p],
-            start: p,
-            end: p,
-          }
-          drawing = true
-        },
-        { passive: false },
-      )
-      canvas.addEventListener(
-        'touchmove',
-        (e) => {
-          if (!drawing || !currentStroke) return
-          e.preventDefault()
-          const p = getPos(e)
-          currentStroke.points.push(p)
-          currentStroke.end = p
-          redraw()
-        },
-        { passive: false },
-      )
-      canvas.addEventListener(
-        'touchend',
-        (e) => {
-          if (!drawing || !currentStroke) return
-          e.preventDefault()
-          strokes.push(currentStroke)
-          currentStroke = null
-          drawing = false
-          redraw()
-        },
-        { passive: false },
-      )
+      function cancelStroke() {
+        if (activePointerId !== null && canvas.hasPointerCapture(activePointerId)) {
+          canvas.releasePointerCapture(activePointerId)
+        }
+
+        currentStroke = null
+        activePointerId = null
+        redraw()
+      }
+
+      canvas.addEventListener('pointerdown', beginStroke)
+      canvas.addEventListener('pointermove', updateStroke)
+      canvas.addEventListener('pointerup', finishStroke)
+      canvas.addEventListener('pointercancel', cancelStroke)
 
       // Escape to cancel
       const onKeyDown = (e: KeyboardEvent) => {
