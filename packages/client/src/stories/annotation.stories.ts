@@ -1,26 +1,22 @@
-import type { Meta, StoryObj } from "@storybook/html";
-import {
-  openAnnotationStory,
-  renderStoryShell,
-  type StoryPreset,
-} from "./storybook-utils.js";
+import type { Meta, StoryObj } from '@storybook/html'
+import { openAnnotationStory, renderStoryShell, type StoryPreset } from './storybook-utils.js'
 
 const meta = {
-  title: "Snapfeed/Annotation Canvas",
-} satisfies Meta;
+  title: 'Snapfeed/Annotation Canvas',
+} satisfies Meta
 
-export default meta;
+export default meta
 
-type Story = StoryObj;
+type Story = StoryObj
 
 function renderAnnotationLaunch(
   preset: StoryPreset,
   title: string,
   subtitle: string,
 ): HTMLDivElement {
-  const root = renderStoryShell(title, subtitle);
-  const section = document.createElement("section");
-  let hasAutoOpened = false;
+  const root = renderStoryShell(title, subtitle)
+  const section = document.createElement('section')
+  let hasAutoOpened = false
   section.style.cssText = `
     max-width: 960px;
     margin: 0 auto;
@@ -32,7 +28,7 @@ function renderAnnotationLaunch(
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
     gap: 24px;
-  `;
+  `
   section.innerHTML = `
     <article id="annotation-target" style="cursor:pointer; transition:transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease; border-radius:24px; padding:6px;">
       <div style="font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:#67e8f9; margin-bottom:12px;">Canvas Preview</div>
@@ -74,88 +70,86 @@ function renderAnnotationLaunch(
         <li>Compare this story against other presets for rhythm and readability</li>
       </ul>
     </div>
-  `;
+  `
 
-  const target = section.querySelector(
-    "#annotation-target",
-  ) as HTMLElement | null;
+  const target = section.querySelector('#annotation-target') as HTMLElement | null
   if (target) {
-    target.addEventListener("mouseenter", () => {
-      target.style.transform = "translateY(-2px)";
-      target.style.boxShadow = "0 20px 50px rgba(15,23,42,0.25)";
-    });
-    target.addEventListener("mouseleave", () => {
-      target.style.transform = "translateY(0)";
-      target.style.boxShadow = "none";
-    });
-    target.addEventListener("click", async () => {
-      await openAnnotationStory(preset);
-    });
+    target.addEventListener('mouseenter', () => {
+      target.style.transform = 'translateY(-2px)'
+      target.style.boxShadow = '0 20px 50px rgba(15,23,42,0.25)'
+    })
+    target.addEventListener('mouseleave', () => {
+      target.style.transform = 'translateY(0)'
+      target.style.boxShadow = 'none'
+    })
+    target.addEventListener('click', async () => {
+      await openAnnotationStory(preset)
+    })
   }
 
-  root.appendChild(section);
+  root.appendChild(section)
 
   requestAnimationFrame(() => {
     if (hasAutoOpened) {
-      return;
+      return
     }
-    hasAutoOpened = true;
-    void openAnnotationStory(preset);
-  });
+    hasAutoOpened = true
+    void openAnnotationStory(preset)
+  })
 
-  return root;
+  return root
 }
 
 export const Modern: Story = {
   render: () =>
     renderAnnotationLaunch(
-      "modern",
-      "Modern annotation canvas",
-      "The current default direction, isolated so you can inspect the toolbar and canvas shell without live app state.",
+      'modern',
+      'Modern annotation canvas',
+      'The current default direction, isolated so you can inspect the toolbar and canvas shell without live app state.',
     ),
-};
+}
 
 export const Windows90s: Story = {
   render: () =>
     renderAnnotationLaunch(
-      "windows90s",
-      "Windows 90s annotation canvas",
-      "A classic desktop-inspired preset that turns the canvas chrome into something closer to a legacy system utility, making hierarchy and edge treatment easier to judge.",
+      'windows90s',
+      'Windows 90s annotation canvas',
+      'A classic desktop-inspired preset that turns the canvas chrome into something closer to a legacy system utility, making hierarchy and edge treatment easier to judge.',
     ),
-};
+}
 
 export const Terminal: Story = {
   render: () =>
     renderAnnotationLaunch(
-      "terminal",
-      "Terminal annotation canvas",
-      "A stripped-down preset that makes it easier to judge whether the tool chrome should disappear into the background.",
+      'terminal',
+      'Terminal annotation canvas',
+      'A stripped-down preset that makes it easier to judge whether the tool chrome should disappear into the background.',
     ),
-};
+}
 
 export const GitHubLight: Story = {
   render: () =>
     renderAnnotationLaunch(
-      "githubLight",
-      "GitHub Light annotation canvas",
-      "A crisp light preset that makes border weight, control grouping, and white-surface contrast easier to evaluate against the screenshot.",
+      'githubLight',
+      'GitHub Light annotation canvas',
+      'A crisp light preset that makes border weight, control grouping, and white-surface contrast easier to evaluate against the screenshot.',
     ),
-};
+}
 
 export const Dracula: Story = {
   render: () =>
     renderAnnotationLaunch(
-      "dracula",
-      "Dracula annotation canvas",
-      "A vivid dark preset that exaggerates accent emphasis so you can judge whether the toolbar benefits from a more expressive palette.",
+      'dracula',
+      'Dracula annotation canvas',
+      'A vivid dark preset that exaggerates accent emphasis so you can judge whether the toolbar benefits from a more expressive palette.',
     ),
-};
+}
 
 export const Nord: Story = {
   render: () =>
     renderAnnotationLaunch(
-      "nord",
-      "Nord annotation canvas",
-      "A muted cool preset that keeps the toolbar calm while preserving enough contrast to compare drawing controls at a glance.",
+      'nord',
+      'Nord annotation canvas',
+      'A muted cool preset that keeps the toolbar calm while preserving enough contrast to compare drawing controls at a glance.',
     ),
-};
+}

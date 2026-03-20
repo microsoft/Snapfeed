@@ -1,67 +1,51 @@
-import { showAnnotationCanvas } from "../annotation.js";
-import {
-  dismissFeedbackDialog,
-  initFeedback,
-  showFeedbackDialog,
-} from "../feedback.js";
-import type { ResolvedConfig } from "../types.js";
-import {
-  type SnapfeedStylePreset,
-  setSnapfeedStylePreset,
-} from "../ui-theme.js";
+import { showAnnotationCanvas } from '../annotation.js'
+import { dismissFeedbackDialog, initFeedback, showFeedbackDialog } from '../feedback.js'
+import type { ResolvedConfig } from '../types.js'
+import { type SnapfeedStylePreset, setSnapfeedStylePreset } from '../ui-theme.js'
 
-export type StoryPreset = SnapfeedStylePreset;
+export type StoryPreset = SnapfeedStylePreset
 
 function createSvgDataUrl(markup: string): string {
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`
 }
 
-async function createJpegFixture(
-  markup: string,
-  quality: number,
-): Promise<string> {
+async function createJpegFixture(markup: string, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const image = new Image();
+    const image = new Image()
     image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth;
-      canvas.height = image.naturalHeight;
-      const ctx = canvas.getContext("2d");
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
+      const ctx = canvas.getContext('2d')
       if (!ctx) {
-        reject(
-          new Error("Unable to create canvas context for Storybook fixture"),
-        );
-        return;
+        reject(new Error('Unable to create canvas context for Storybook fixture'))
+        return
       }
-      ctx.drawImage(image, 0, 0);
-      const dataUrl = canvas.toDataURL("image/jpeg", quality);
-      const base64 = dataUrl.split(",")[1];
+      ctx.drawImage(image, 0, 0)
+      const dataUrl = canvas.toDataURL('image/jpeg', quality)
+      const base64 = dataUrl.split(',')[1]
       if (!base64) {
-        reject(new Error("Unable to encode Storybook fixture as base64 JPEG"));
-        return;
+        reject(new Error('Unable to encode Storybook fixture as base64 JPEG'))
+        return
       }
-      resolve(base64);
-    };
-    image.onerror = () =>
-      reject(new Error("Unable to load Storybook annotation fixture"));
-    image.src = createSvgDataUrl(markup);
-  });
+      resolve(base64)
+    }
+    image.onerror = () => reject(new Error('Unable to load Storybook annotation fixture'))
+    image.src = createSvgDataUrl(markup)
+  })
 }
 
 export function cleanupStorySurface(): void {
-  dismissFeedbackDialog();
-  document.querySelectorAll("[data-snapfeed-overlay]").forEach((node) => {
-    node.remove();
-  });
+  dismissFeedbackDialog()
+  document.querySelectorAll('[data-snapfeed-overlay]').forEach((node) => {
+    node.remove()
+  })
 }
 
-export function renderStoryShell(
-  title: string,
-  subtitle: string,
-): HTMLDivElement {
-  cleanupStorySurface();
+export function renderStoryShell(title: string, subtitle: string): HTMLDivElement {
+  cleanupStorySurface()
 
-  const root = document.createElement("div");
+  const root = document.createElement('div')
   root.style.cssText = `
     min-height: 100vh;
     padding: 40px;
@@ -71,29 +55,29 @@ export function renderStoryShell(
       linear-gradient(135deg, #0f172a 0%, #111827 45%, #1f2937 100%);
     color: #f8fafc;
     font-family: 'Avenir Next', 'Segoe UI', sans-serif;
-  `;
+  `
 
-  const header = document.createElement("div");
-  header.style.cssText = "max-width: 960px; margin: 0 auto 24px;";
+  const header = document.createElement('div')
+  header.style.cssText = 'max-width: 960px; margin: 0 auto 24px;'
   header.innerHTML = `
     <div style="font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:#93c5fd; margin-bottom:12px;">Snapfeed UI Lab</div>
     <h1 style="margin:0 0 8px; font-size:36px; line-height:1.05; font-weight:700;">${title}</h1>
     <p style="margin:0; max-width:680px; font-size:16px; line-height:1.6; color:#cbd5e1;">${subtitle}</p>
-  `;
-  root.appendChild(header);
+  `
+  root.appendChild(header)
 
-  return root;
+  return root
 }
 
 export function createFixtureCard(): HTMLDivElement {
-  const fixture = document.createElement("div");
+  const fixture = document.createElement('div')
   fixture.style.cssText = `
     max-width: 960px;
     margin: 0 auto;
     display: grid;
     gap: 20px;
     grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
-  `;
+  `
   fixture.innerHTML = `
     <section style="padding:28px; border-radius:24px; background:rgba(15,23,42,0.82); border:1px solid rgba(148,163,184,0.18); box-shadow:0 24px 70px rgba(15,23,42,0.4);">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:28px;">
@@ -129,43 +113,38 @@ export function createFixtureCard(): HTMLDivElement {
         <li>Dismiss and click the result card only if you want to reopen it.</li>
       </ol>
     </aside>
-  `;
+  `
 
-  const target = fixture.querySelector(
-    "#feedback-target",
-  ) as HTMLElement | null;
+  const target = fixture.querySelector('#feedback-target') as HTMLElement | null
   if (target) {
-    target.addEventListener("mouseenter", () => {
-      target.style.transform = "translateY(-2px)";
-      target.style.borderColor = "rgba(251,113,133,0.5)";
-      target.style.boxShadow = "0 18px 48px rgba(15,23,42,0.35)";
-    });
-    target.addEventListener("mouseleave", () => {
-      target.style.transform = "translateY(0)";
-      target.style.borderColor = "rgba(251,113,133,0.2)";
-      target.style.boxShadow = "0 0 0 rgba(0,0,0,0)";
-    });
+    target.addEventListener('mouseenter', () => {
+      target.style.transform = 'translateY(-2px)'
+      target.style.borderColor = 'rgba(251,113,133,0.5)'
+      target.style.boxShadow = '0 18px 48px rgba(15,23,42,0.35)'
+    })
+    target.addEventListener('mouseleave', () => {
+      target.style.transform = 'translateY(0)'
+      target.style.borderColor = 'rgba(251,113,133,0.2)'
+      target.style.boxShadow = '0 0 0 rgba(0,0,0,0)'
+    })
   }
 
-  return fixture;
+  return fixture
 }
 
-export function configureFeedbackStory(
-  preset: StoryPreset,
-  config: ResolvedConfig,
-): void {
-  setSnapfeedStylePreset(preset);
-  initFeedback(config);
+export function configureFeedbackStory(preset: StoryPreset, config: ResolvedConfig): void {
+  setSnapfeedStylePreset(preset)
+  initFeedback(config)
 }
 
 export function openFeedbackForFixture(target: Element): void {
-  const rect = target.getBoundingClientRect();
-  showFeedbackDialog(target, rect.left + rect.width / 2, rect.top + 28);
+  const rect = target.getBoundingClientRect()
+  showFeedbackDialog(target, rect.left + rect.width / 2, rect.top + 28)
 }
 
 export async function openAnnotationStory(preset: StoryPreset): Promise<void> {
-  cleanupStorySurface();
-  setSnapfeedStylePreset(preset);
+  cleanupStorySurface()
+  setSnapfeedStylePreset(preset)
 
   const screenshot = await createJpegFixture(
     `
@@ -193,7 +172,7 @@ export async function openAnnotationStory(preset: StoryPreset): Promise<void> {
     </svg>
   `,
     0.9,
-  );
+  )
 
-  await showAnnotationCanvas(screenshot, 0.9);
+  await showAnnotationCanvas(screenshot, 0.9)
 }
