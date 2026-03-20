@@ -5,16 +5,21 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/react"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
+    "build:react-e2e": "npm run -w examples/react build",
     "clean": "npm run clean --workspaces",
+    "dev:react-e2e": "npm run -w examples/react dev",
+    "dev:react-e2e:server": "npm run -w examples/react dev:server",
     "lint": "npx biome ci .",
     "lint:fix": "npx biome check --write .",
     "storybook:client": "npm run -w packages/client storybook",
     "storybook:client:build": "npm run -w packages/client storybook:build",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "test:react-e2e": "npm run -w examples/react e2e"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8"
