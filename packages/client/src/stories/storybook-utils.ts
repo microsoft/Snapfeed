@@ -84,7 +84,7 @@ export function createFixtureCard(): HTMLDivElement {
         <div>
           <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.18em; color:#fca5a5; margin-bottom:10px;">Canvas Target</div>
           <h2 style="margin:0 0 10px; font-size:30px;">Search result card</h2>
-          <p style="margin:0; max-width:520px; color:#94a3b8; line-height:1.6;">The feedback overlay opens as soon as the story renders. If you dismiss it and want to inspect again, click the card to reopen it. The overlay will pull label, breadcrumb, and data attributes from the clicked element.</p>
+          <p style="margin:0; max-width:520px; color:#94a3b8; line-height:1.6;">The feedback overlay opens as soon as the story renders. If you dismiss it and want to inspect again, click the card to reopen it. The overlay now exposes attachment controls, clearer loading states, and explicit submission feedback alongside the existing label and breadcrumb context.</p>
         </div>
         <div style="padding:10px 14px; border-radius:999px; background:rgba(251,113,133,0.12); color:#fecdd3; font-size:12px; text-transform:uppercase; letter-spacing:0.14em; white-space:nowrap;">Auto-open on load</div>
       </div>
@@ -108,7 +108,8 @@ export function createFixtureCard(): HTMLDivElement {
       <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.18em; color:#86efac; margin-bottom:12px;">How to use</div>
       <ol style="margin:0; padding-left:18px; color:#cbd5e1; line-height:1.8;">
         <li>The current feedback preset opens automatically when the story loads.</li>
-        <li>Use the annotate button in the overlay to inspect canvas chrome.</li>
+        <li>Use the attachment controls to toggle screenshot and page context before sending.</li>
+        <li>Use the annotate button in the overlay after the screenshot is ready.</li>
         <li>Dismiss and click the result card only if you want to reopen it.</li>
       </ol>
     </aside>

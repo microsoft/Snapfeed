@@ -21,7 +21,11 @@ export interface TelemetryEvent {
 
 export type FeedbackCategory = 'bug' | 'idea' | 'question' | 'praise' | 'other'
 
-export const FEEDBACK_CATEGORIES: Array<{ id: FeedbackCategory; emoji: string; label: string }> = [
+export const FEEDBACK_CATEGORIES: Array<{
+  id: FeedbackCategory
+  emoji: string
+  label: string
+}> = [
   { id: 'bug', emoji: '🐛', label: 'Bug' },
   { id: 'idea', emoji: '💡', label: 'Idea' },
   { id: 'question', emoji: '❓', label: 'Question' },
@@ -106,6 +110,14 @@ export interface FeedbackConfig {
   backgroundColor?: string
   /** Enable annotation canvas for drawing on screenshots. Default: true */
   annotations?: boolean
+  /** Allow users to exclude the screenshot for a single report. Default: true */
+  allowScreenshotToggle?: boolean
+  /** Allow users to exclude page context for a single report. Default: true */
+  allowContextToggle?: boolean
+  /** Attach screenshots by default. Default: true */
+  defaultIncludeScreenshot?: boolean
+  /** Attach page context by default. Default: true */
+  defaultIncludeContext?: boolean
 }
 
 export interface SnapfeedConfig {
@@ -175,6 +187,10 @@ export function resolveConfig(config: SnapfeedConfig = {}): ResolvedConfig {
       screenshotQuality: config.feedback?.screenshotQuality ?? 0.6,
       backgroundColor: config.feedback?.backgroundColor ?? '#1e1e2e',
       annotations: config.feedback?.annotations ?? true,
+      allowScreenshotToggle: config.feedback?.allowScreenshotToggle ?? true,
+      allowContextToggle: config.feedback?.allowContextToggle ?? true,
+      defaultIncludeScreenshot: config.feedback?.defaultIncludeScreenshot ?? true,
+      defaultIncludeContext: config.feedback?.defaultIncludeContext ?? true,
     },
     user: config.user ?? null,
     adapters: config.adapters ?? [],
