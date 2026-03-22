@@ -20,11 +20,12 @@ class Snapfeed_Admin {
     public static function defaults(): array {
         return [
             'enabled'                => '1',
+            'tracking_mode'          => 'logged_in',
             'feedback_enabled'       => '1',
             'track_clicks'           => '1',
             'track_navigation'       => '1',
             'track_errors'           => '1',
-            'track_api_errors'       => '1',
+            'track_api_errors'       => '',
             'rage_click_enabled'     => '1',
             'network_log_enabled'    => '1',
             'session_replay_enabled' => '',
@@ -72,6 +73,10 @@ class Snapfeed_Admin {
 
         self::add_toggle('enabled', __('Enable Snapfeed', 'snapfeed'), 'snapfeed_general',
             __('Load Snapfeed on the front-end of your site.', 'snapfeed'));
+        self::add_select('tracking_mode', __('Tracking Mode', 'snapfeed'), 'snapfeed_general', [
+            'logged_in' => __('Logged-in users only (recommended)', 'snapfeed'),
+            'everyone'  => __('All visitors', 'snapfeed'),
+        ], __('Who gets tracked. "Logged-in only" avoids tracking every public visitor.', 'snapfeed'));
         self::add_toggle('feedback_enabled', __('Feedback Dialog', 'snapfeed'), 'snapfeed_general',
             __('Allow Cmd+Click / Ctrl+Click feedback with screenshots.', 'snapfeed'));
         self::add_toggle('track_clicks', __('Track Clicks', 'snapfeed'), 'snapfeed_general');
@@ -186,6 +191,11 @@ curl -u username:app_password <?php echo esc_url($site_url . 'events/42/screensh
             $clean[$key] = !empty($input[$key]) ? '1' : '';
         }
 
+        // Select fields
+        $clean['tracking_mode'] = in_array($input['tracking_mode'] ?? '', ['logged_in', 'everyone'], true)
+            ? $input['tracking_mode']
+            : 'logged_in';
+
         // Numeric fields
         $clean['rate_limit_max']      = absint($input['rate_limit_max'] ?? $defaults['rate_limit_max']);
         $clean['rate_limit_window']   = absint($input['rate_limit_window'] ?? $defaults['rate_limit_window']);
@@ -265,6 +275,28 @@ curl -u username:app_password <?php echo esc_url($site_url . 'events/42/screensh
 
                 echo '<input type="' . esc_attr($type) . '" name="' . esc_attr(self::OPTION_KEY . '[' . $key . ']') . '"'
                     . ' value="' . esc_attr($value) . '" class="regular-text"' . $attrs . '>';
+                if ($description) {
+                    echo '<p class="description">' . esc_html($description) . '</p>';
+                }
+            },
+            self::PAGE_SLUG,
+            $section
+        );
+    }
+
+    private static function add_select(string $key, string $label, string $section, array $options, string $description = ''): void {
+        add_settings_field(
+            'snapfeed_' . $key,
+            $label,
+            function () use ($key, $options, $description) {
+                $settings = get_option(self::OPTION_KEY, self::defaults());
+                $current  = $settings[$key] ?? '';
+                echo '<select name="' . esc_attr(self::OPTION_KEY . '[' . $key . ']') . '">';
+                foreach ($options as $value => $text) {
+                    $selected = selected($current, $value, false);
+                    echo '<option value="' . esc_attr($value) . '"' . $selected . '>' . esc_html($text) . '</option>';
+                }
+                echo '</select>';
                 if ($description) {
                     echo '<p class="description">' . esc_html($description) . '</p>';
                 }

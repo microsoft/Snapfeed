@@ -22,6 +22,12 @@ class Snapfeed_Enqueue {
             return;
         }
 
+        // Tracking mode: 'logged_in' (default) only loads for authenticated users
+        $mode = $settings['tracking_mode'] ?? 'logged_in';
+        if ($mode === 'logged_in' && !is_user_logged_in()) {
+            return;
+        }
+
         // 1. Snapfeed IIFE bundle
         wp_enqueue_script(
             'snapfeed',
