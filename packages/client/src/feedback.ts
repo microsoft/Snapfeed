@@ -516,6 +516,24 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
       Object.assign(detail, context)
       const consoleErrors = getConsoleErrors()
       if (consoleErrors.length > 0) detail.console_errors = consoleErrors
+
+      // Attach network log if available
+      const netLog = (window as unknown as Record<string, unknown>).__snapfeedNetworkLog as {
+        getEntries?: () => unknown[]
+      } | null
+      if (netLog?.getEntries) {
+        const entries = netLog.getEntries()
+        if (entries.length > 0) detail.network_log = entries
+      }
+
+      // Attach session replay if available
+      const replay = (window as unknown as Record<string, unknown>).__snapfeedSessionReplay as {
+        getEvents?: () => unknown[]
+      } | null
+      if (replay?.getEvents) {
+        const events = replay.getEvents()
+        if (events.length > 0) detail.replay_data = events
+      }
     }
     return sanitizeDetail(detail)
   }

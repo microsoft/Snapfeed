@@ -19,6 +19,9 @@
       "types": "./dist/adapters.d.ts",
       "import": "./dist/adapters.js",
       "require": "./dist/adapters.cjs"
+    },
+    "./global": {
+      "default": "./dist/snapfeed.global.js"
     }
   },
   "scripts": {

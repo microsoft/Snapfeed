@@ -1,0 +1,154 @@
+/* Snapfeed Admin Dashboard Styles */
+
+/* ── Badges ───────────────────────────────────────────────────────── */
+
+.snapfeed-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.snapfeed-badge--error {
+    background: #fdd;
+    color: #a00;
+}
+
+.snapfeed-badge--feedback {
+    background: #def;
+    color: #06c;
+}
+
+/* ── Filter tabs ──────────────────────────────────────────────────── */
+
+.snapfeed-filters {
+    margin: 16px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* ── Timeline ─────────────────────────────────────────────────────── */
+
+.snapfeed-timeline {
+    max-width: 900px;
+}
+
+.snapfeed-event {
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    background: #fff;
+    transition: box-shadow 0.15s;
+}
+
+.snapfeed-event:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.snapfeed-event--feedback {
+    border-left: 4px solid #58a6ff;
+}
+
+.snapfeed-event--error,
+.snapfeed-event--api_error,
+.snapfeed-event--network_error {
+    border-left: 4px solid #f85149;
+}
+
+.snapfeed-event--rage_click {
+    border-left: 4px solid #d29922;
+}
+
+.snapfeed-event__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.snapfeed-event__type {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.snapfeed-event__time {
+    color: #656d76;
+    font-size: 13px;
+}
+
+.snapfeed-event__seq {
+    color: #8b949e;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+.snapfeed-event__target {
+    font-family: monospace;
+    font-size: 13px;
+    color: #1f2328;
+    margin-bottom: 6px;
+}
+
+.snapfeed-event__page {
+    font-size: 13px;
+    color: #656d76;
+    margin-bottom: 6px;
+}
+
+.snapfeed-event__message {
+    background: #f6f8fa;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 8px 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.snapfeed-event__screenshot {
+    margin: 10px 0;
+}
+
+.snapfeed-event__screenshot img {
+    transition: transform 0.15s;
+}
+
+.snapfeed-event__screenshot img:hover {
+    transform: scale(1.02);
+}
+
+.snapfeed-event__detail {
+    margin: 8px 0;
+}
+
+.snapfeed-event__detail summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: #58a6ff;
+    font-weight: 500;
+}
+
+.snapfeed-event__detail summary:hover {
+    text-decoration: underline;
+}
+
+.snapfeed-event__detail pre {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.5;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.snapfeed-event__actions {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+}

@@ -152,6 +152,15 @@ export interface SnapfeedConfig {
 
   /** Feedback adapters — called on feedback events in addition to the telemetry endpoint. */
   adapters?: FeedbackAdapter[]
+
+  /** Rage click detection. Default: enabled with threshold=3, windowMs=1000 */
+  rageClick?: { enabled?: boolean; threshold?: number; windowMs?: number }
+
+  /** Network request log. Default: enabled with maxSize=30 */
+  networkLog?: { enabled?: boolean; maxSize?: number }
+
+  /** Session replay (lightweight DOM/scroll/mouse recording). Default: disabled */
+  sessionReplay?: { enabled?: boolean; windowSec?: number; maxEvents?: number }
 }
 
 /** Resolved config with all defaults applied. */
@@ -168,6 +177,9 @@ export interface ResolvedConfig {
   feedback: Required<FeedbackConfig>
   user: SnapfeedUser | null
   adapters: FeedbackAdapter[]
+  rageClick: { enabled: boolean; threshold: number; windowMs: number }
+  networkLog: { enabled: boolean; maxSize: number }
+  sessionReplay: { enabled: boolean; windowSec: number; maxEvents: number }
 }
 
 export function resolveConfig(config: SnapfeedConfig = {}): ResolvedConfig {
@@ -194,5 +206,19 @@ export function resolveConfig(config: SnapfeedConfig = {}): ResolvedConfig {
     },
     user: config.user ?? null,
     adapters: config.adapters ?? [],
+    rageClick: {
+      enabled: config.rageClick?.enabled ?? true,
+      threshold: config.rageClick?.threshold ?? 3,
+      windowMs: config.rageClick?.windowMs ?? 1000,
+    },
+    networkLog: {
+      enabled: config.networkLog?.enabled ?? true,
+      maxSize: config.networkLog?.maxSize ?? 30,
+    },
+    sessionReplay: {
+      enabled: config.sessionReplay?.enabled ?? false,
+      windowSec: config.sessionReplay?.windowSec ?? 180,
+      maxEvents: config.sessionReplay?.maxEvents ?? 5000,
+    },
   }
 }

@@ -17,9 +17,12 @@
 import { startCapturing, stopCapturing } from './console-capture.js'
 import { handleCtrlClick, initFeedback } from './feedback.js'
 import { getLabel, getPath } from './helpers.js'
+import { createNetworkLog } from './network-log.js'
 import { clearPlugins, enrichElement, getPluginNames, registerPlugin } from './plugins.js'
 import { flush, getQueue, getSessionId, push, startFlushing, stopFlushing } from './queue.js'
+import { createRageDetector } from './rage-detect.js'
 import { sanitizeDetail } from './sanitize.js'
+import { createSessionReplay } from './session-replay.js'
 import type { SnapfeedConfig } from './types.js'
 import { resolveConfig } from './types.js'
 
@@ -27,9 +30,15 @@ export { consoleAdapter, webhookAdapter } from './adapters.js'
 export { getConsoleErrors } from './console-capture.js'
 export { gatherContext } from './feedback.js'
 export { describeElement, getLabel, getPath, getText } from './helpers.js'
+export type { NetworkLog, NetworkLogConfig, NetworkLogEntry } from './network-log.js'
+export { createNetworkLog } from './network-log.js'
 export { enrichElement, getPluginNames, registerPlugin, unregisterPlugin } from './plugins.js'
 export { flush, getSessionId, push } from './queue.js'
+export type { RageClickInfo, RageDetectConfig } from './rage-detect.js'
+export { createRageDetector } from './rage-detect.js'
 export { sanitize, sanitizeDetail } from './sanitize.js'
+export type { ReplayEvent, SessionReplay, SessionReplayConfig } from './session-replay.js'
+export { createSessionReplay } from './session-replay.js'
 // Re-export public API
 export type {
   AdapterResult,
@@ -222,6 +231,70 @@ export function initSnapfeed(config: SnapfeedConfig = {}): () => void {
     patchFetch(resolved.endpoint)
     cleanupFns.push(unpatchFetch)
   }
+
+  // Rage click detection
+  if (resolved.rageClick.enabled && resolved.trackClicks) {
+    const rageDetector = createRageDetector({
+      threshold: resolved.rageClick.threshold,
+      windowMs: resolved.rageClick.windowMs,
+      onRageClick: (info) => {
+        push('rage_click', info.target, {
+          clickCount: info.clickCount,
+          durationMs: info.durationMs,
+          x: info.x,
+          y: info.y,
+        })
+        flush()
+      },
+    })
+    // Hook into click events — extract target label and coordinates
+    const rageClickHandler = (e: MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) return
+      const el = e.target as Element
+      if (!el) return
+      rageDetector.recordClick(getLabel(el), Math.round(e.clientX), Math.round(e.clientY))
+    }
+    document.addEventListener('click', rageClickHandler, { capture: true })
+    cleanupFns.push(() => {
+      document.removeEventListener('click', rageClickHandler, { capture: true })
+      rageDetector.destroy()
+    })
+  }
+
+  // Network request log
+  let networkLog: ReturnType<typeof createNetworkLog> | null = null
+  if (resolved.networkLog.enabled) {
+    networkLog = createNetworkLog({
+      maxSize: resolved.networkLog.maxSize,
+      excludePatterns: [resolved.endpoint],
+    })
+    // Wrap fetch with network logging (layer on top of API error patching)
+    const currentFetch = window.fetch
+    window.fetch = networkLog.wrapFetch(currentFetch)
+    cleanupFns.push(() => {
+      window.fetch = currentFetch
+      networkLog?.destroy()
+      networkLog = null
+    })
+  }
+  // Expose networkLog getter for feedback module
+  ;(window as unknown as Record<string, unknown>).__snapfeedNetworkLog = networkLog
+
+  // Session replay
+  let sessionReplay: ReturnType<typeof createSessionReplay> | null = null
+  if (resolved.sessionReplay.enabled) {
+    sessionReplay = createSessionReplay({
+      windowSec: resolved.sessionReplay.windowSec,
+      maxEvents: resolved.sessionReplay.maxEvents,
+    })
+    sessionReplay.start()
+    cleanupFns.push(() => {
+      sessionReplay?.stop()
+      sessionReplay = null
+    })
+  }
+  // Expose sessionReplay getter for feedback module
+  ;(window as unknown as Record<string, unknown>).__snapfeedSessionReplay = sessionReplay
 
   // Flush on page unload
   const onUnload = () => {
