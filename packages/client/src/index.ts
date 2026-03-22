@@ -330,7 +330,8 @@ export function initSnapfeed(config: SnapfeedConfig = {}): () => void {
 
   // Return teardown function
   return () => {
-    for (const fn of cleanupFns) fn()
+    // Reverse order (LIFO) so layered wrappers (e.g. fetch) unwind correctly
+    while (cleanupFns.length) cleanupFns.pop()!()
     cleanupFns = []
     stopFlushing()
     clearPlugins()

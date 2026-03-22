@@ -48,8 +48,12 @@ class Snapfeed_Captcha {
         ]);
 
         if (is_wp_error($response)) {
-            // If Cloudflare is unreachable, allow the request (fail-open)
-            return null;
+            // Fail-closed: if Cloudflare is unreachable and CAPTCHA is configured, reject
+            return new \WP_Error(
+                'captcha_unavailable',
+                'CAPTCHA verification service unavailable',
+                ['status' => 503]
+            );
         }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
