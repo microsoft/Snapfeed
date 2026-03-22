@@ -76,7 +76,7 @@ class Snapfeed_Admin {
         self::add_select('tracking_mode', __('Tracking Mode', 'snapfeed'), 'snapfeed_general', [
             'logged_in' => __('Logged-in users only (recommended)', 'snapfeed'),
             'everyone'  => __('All visitors', 'snapfeed'),
-        ], __('Who gets tracked. "Logged-in only" avoids tracking every public visitor.', 'snapfeed'));
+        ], __('Who gets full telemetry. Anonymous visitors can always submit feedback via Ctrl+Click.', 'snapfeed'));
         self::add_toggle('feedback_enabled', __('Feedback Dialog', 'snapfeed'), 'snapfeed_general',
             __('Allow Cmd+Click / Ctrl+Click feedback with screenshots.', 'snapfeed'));
         self::add_toggle('track_clicks', __('Track Clicks', 'snapfeed'), 'snapfeed_general');

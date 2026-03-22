@@ -22,11 +22,9 @@ class Snapfeed_Enqueue {
             return;
         }
 
-        // Tracking mode: 'logged_in' (default) only loads for authenticated users
-        $mode = $settings['tracking_mode'] ?? 'logged_in';
-        if ($mode === 'logged_in' && !is_user_logged_in()) {
-            return;
-        }
+        // Determine if this visitor gets full telemetry or feedback-only
+        $mode          = $settings['tracking_mode'] ?? 'logged_in';
+        $full_tracking = ($mode === 'everyone') || is_user_logged_in();
 
         // 1. Snapfeed IIFE bundle
         wp_enqueue_script(
@@ -58,21 +56,21 @@ class Snapfeed_Enqueue {
         );
 
         // 4. Pass config from PHP → JS
-        wp_localize_script('snapfeed-wp-init', 'SnapfeedWP', self::build_js_config($settings));
+        wp_localize_script('snapfeed-wp-init', 'SnapfeedWP', self::build_js_config($settings, $full_tracking));
     }
 
-    private static function build_js_config(array $settings): array {
+    private static function build_js_config(array $settings, bool $full_tracking): array {
         return [
             'endpoint'            => esc_url_raw(rest_url('snapfeed/v1/events')),
             'nonce'               => wp_create_nonce('wp_rest'),
             'feedbackEnabled'     => !empty($settings['feedback_enabled']),
-            'trackClicks'         => !empty($settings['track_clicks']),
-            'trackNavigation'     => !empty($settings['track_navigation']),
-            'trackErrors'         => !empty($settings['track_errors']),
-            'trackApiErrors'      => !empty($settings['track_api_errors']),
-            'rageClickEnabled'    => !empty($settings['rage_click_enabled']),
-            'networkLogEnabled'   => !empty($settings['network_log_enabled']),
-            'sessionReplay'       => !empty($settings['session_replay_enabled']),
+            'trackClicks'         => $full_tracking && !empty($settings['track_clicks']),
+            'trackNavigation'     => $full_tracking && !empty($settings['track_navigation']),
+            'trackErrors'         => $full_tracking && !empty($settings['track_errors']),
+            'trackApiErrors'      => $full_tracking && !empty($settings['track_api_errors']),
+            'rageClickEnabled'    => $full_tracking && !empty($settings['rage_click_enabled']),
+            'networkLogEnabled'   => $full_tracking && !empty($settings['network_log_enabled']),
+            'sessionReplay'       => $full_tracking && !empty($settings['session_replay_enabled']),
             'screenshotQuality'   => (float) ($settings['screenshot_quality'] ?? 0.6),
             'turnstileSiteKey'    => $settings['turnstile_site_key'] ?? '',
         ];
