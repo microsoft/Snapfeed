@@ -33,14 +33,12 @@ The agent writes code. You test. When something's off, **Cmd+Click** anywhere
 to capture an annotated screenshot with full page context. The agent reads the
 feedback, fixes the code, and you test again.
 
-```
-┌──────────┐      ┌──────────┐      ┌───────────────┐      ┌──────────┐
-│  Agent   │─────▶│  Your UI │─────▶│  You test it  │─────▶│  Agent   │
-│ writes   │      │ (with    │      │  Cmd+Click    │      │ reads    │
-│ code     │      │ snapfeed)│      │  feedback     │      │ feedback │
-└──────────┘      └──────────┘      └───────────────┘      └────┬─────┘
-     ▲                                                          │
-     └──────────────────── fixes & iterates ◀───────────────────┘
+```mermaid
+graph LR
+    A["Agent\nwrites code"] --> B["Your UI\n(with snapfeed)"]
+    B --> C["You test it\nCmd+Click feedback"]
+    C --> D["Agent\nreads feedback"]
+    D -- "fixes & iterates" --> A
 ```
 
 ### Use Case 2 — User → Queue → Agent
@@ -49,11 +47,11 @@ Ship snapfeed in your production app. Real users submit feedback with
 categorized tags (🐛 Bug · 💡 Idea · ❓ Question · 🙌 Praise). Feedback
 accumulates in a queue. An agent — or your dev team — triages and acts on it.
 
-```
-┌──────────┐      ┌──────────────┐      ┌──────────┐      ┌──────────┐
-│  Users   │─────▶│  Snapfeed    │─────▶│  Queue   │─────▶│  Agent / │
-│  in prod │      │  server      │      │  (SQLite)│      │  Dev team│
-└──────────┘      └──────────────┘      └──────────┘      └──────────┘
+```mermaid
+graph LR
+    A["Users\nin prod"] --> B["Snapfeed\nserver"]
+    B --> C["Queue\n(SQLite)"]
+    C --> D["Agent /\nDev team"]
 ```
 
 ---
