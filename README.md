@@ -34,11 +34,11 @@ to capture an annotated screenshot with full page context. The agent reads the
 feedback, fixes the code, and you test again.
 
 ```
-┌─────────┐      ┌──────────┐      ┌───────────────┐      ┌─────────┐
+┌──────────┐      ┌──────────┐      ┌───────────────┐      ┌──────────┐
 │  Agent   │─────▶│  Your UI │─────▶│  You test it  │─────▶│  Agent   │
 │ writes   │      │ (with    │      │  Cmd+Click    │      │ reads    │
 │ code     │      │ snapfeed)│      │  feedback     │      │ feedback │
-└─────────┘      └──────────┘      └───────────────┘      └────┬────┘
+└──────────┘      └──────────┘      └───────────────┘      └────┬─────┘
      ▲                                                          │
      └──────────────────── fixes & iterates ◀───────────────────┘
 ```
