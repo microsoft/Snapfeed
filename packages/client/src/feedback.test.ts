@@ -309,4 +309,30 @@ describe('feedback overlay', () => {
       value: originalInnerHeight,
     })
   })
+
+  it('applies a custom theme from config to the overlay UI', async () => {
+    initFeedback(
+      resolveConfig({
+        feedback: { enabled: true },
+        theme: {
+          accent: '#0f6cbd',
+          panelBackground: '#f5f9ff',
+          panelText: '#12344d',
+        },
+      }),
+    )
+
+    const target = createTarget()
+
+    showFeedbackDialog(target, 120, 80)
+    await flushUi()
+
+    const overlay = document.querySelector(
+      '[data-snapfeed-overlay="feedback-dialog"]',
+    ) as HTMLDivElement
+
+    expect(overlay.style.background).toBe('rgb(245, 249, 255)')
+    expect(overlay.style.color).toBe('rgb(18, 52, 77)')
+    expect(overlay.innerHTML).toContain('#0f6cbd')
+  })
 })

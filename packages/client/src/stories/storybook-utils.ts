@@ -133,8 +133,8 @@ export function createFixtureCard(): HTMLDivElement {
 }
 
 export function configureFeedbackStory(preset: StoryPreset, config: ResolvedConfig): void {
-  setSnapfeedStylePreset(preset)
   initFeedback(config)
+  setSnapfeedStylePreset(preset)
 }
 
 export function openFeedbackForFixture(target: Element): void {
