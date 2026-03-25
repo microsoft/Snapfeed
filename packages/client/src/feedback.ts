@@ -16,7 +16,7 @@ import { flush, getSessionId, push } from './queue.js'
 import { sanitizeDetail } from './sanitize.js'
 import type { FeedbackCategory, ResolvedConfig, TelemetryEvent } from './types.js'
 import { FEEDBACK_CATEGORIES } from './types.js'
-import { getSnapfeedTheme } from './ui-theme.js'
+import { getSnapfeedTheme, setSnapfeedStylePreset, setSnapfeedTheme } from './ui-theme.js'
 
 type StatusTone = 'success' | 'warning' | 'error'
 
@@ -972,4 +972,10 @@ export function handleCtrlClick(e: MouseEvent): void {
 
 export function initFeedback(config: ResolvedConfig): void {
   currentConfig = config
+  if (config.themePreset) {
+    setSnapfeedStylePreset(config.themePreset)
+    return
+  }
+
+  setSnapfeedTheme(config.theme)
 }

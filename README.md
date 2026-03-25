@@ -246,6 +246,14 @@ initSnapfeed({
   // Optional user identity
   user: { name: "Jane", email: "jane@example.com" },
 
+  // Feedback UI theme
+  theme: {
+    panelBackground: "#f5f9ff",
+    panelText: "#12344d",
+    accent: "#0f6cbd",
+    accentContrast: "#ffffff",
+  },
+
   // Adapters — fan out feedback to external systems
   adapters: [webhookAdapter("https://hooks.slack.com/...")],
 
@@ -255,6 +263,8 @@ initSnapfeed({
 ```
 
 Returns a teardown function: `const teardown = initSnapfeed(); teardown()`
+
+Built-in presets are also available through the client package exports: `modern`, `windows90s`, `terminal`, `githubLight`, `dracula`, and `nord`. If you pass a custom `theme` object, Snapfeed merges it over the `modern` preset.
 
 ---
 

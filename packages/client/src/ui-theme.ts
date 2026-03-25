@@ -6,6 +6,13 @@ export type SnapfeedStylePreset =
   | 'dracula'
   | 'nord'
 
+export type SnapfeedThemeConfig = SnapfeedStylePreset | Partial<SnapfeedTheme>
+
+export interface ResolvedSnapfeedTheme {
+  preset: SnapfeedStylePreset | null
+  theme: SnapfeedTheme
+}
+
 export interface SnapfeedTheme {
   fontFamily: string
   overlayBackdrop: string
@@ -186,18 +193,63 @@ const PRESETS: Record<SnapfeedStylePreset, SnapfeedTheme> = {
   },
 }
 
-let currentPreset: SnapfeedStylePreset = 'modern'
+export const DEFAULT_SNAPFEED_STYLE_PRESET: SnapfeedStylePreset = 'modern'
 
-export function getSnapfeedTheme(): SnapfeedTheme {
-  return PRESETS[currentPreset]
+let currentPreset: SnapfeedStylePreset | null = DEFAULT_SNAPFEED_STYLE_PRESET
+let currentTheme: SnapfeedTheme = PRESETS[DEFAULT_SNAPFEED_STYLE_PRESET]
+
+function isSnapfeedStylePreset(theme: SnapfeedThemeConfig): theme is SnapfeedStylePreset {
+  return typeof theme === 'string'
 }
 
-export function getSnapfeedStylePreset(): SnapfeedStylePreset {
+function mergeSnapfeedTheme(
+  theme: Partial<SnapfeedTheme>,
+  preset: SnapfeedStylePreset,
+): SnapfeedTheme {
+  return { ...PRESETS[preset], ...theme }
+}
+
+function applyResolvedSnapfeedTheme(resolvedTheme: ResolvedSnapfeedTheme): void {
+  currentPreset = resolvedTheme.preset
+  currentTheme = resolvedTheme.theme
+}
+
+export function resolveSnapfeedTheme(
+  theme: SnapfeedThemeConfig = DEFAULT_SNAPFEED_STYLE_PRESET,
+): ResolvedSnapfeedTheme {
+  if (isSnapfeedStylePreset(theme)) {
+    return {
+      preset: theme,
+      theme: PRESETS[theme],
+    }
+  }
+
+  return {
+    preset: null,
+    theme: mergeSnapfeedTheme(theme, DEFAULT_SNAPFEED_STYLE_PRESET),
+  }
+}
+
+export function getSnapfeedTheme(): SnapfeedTheme {
+  return currentTheme
+}
+
+export function getSnapfeedStylePreset(): SnapfeedStylePreset | null {
   return currentPreset
 }
 
 export function setSnapfeedStylePreset(preset: SnapfeedStylePreset): void {
-  currentPreset = preset
+  applyResolvedSnapfeedTheme(resolveSnapfeedTheme(preset))
+}
+
+export function setSnapfeedTheme(
+  theme: Partial<SnapfeedTheme>,
+  preset: SnapfeedStylePreset = DEFAULT_SNAPFEED_STYLE_PRESET,
+): void {
+  applyResolvedSnapfeedTheme({
+    preset: null,
+    theme: mergeSnapfeedTheme(theme, preset),
+  })
 }
 
 export function getSnapfeedStylePresets(): SnapfeedStylePreset[] {

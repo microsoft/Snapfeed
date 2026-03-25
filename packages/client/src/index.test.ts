@@ -156,4 +156,32 @@ describe('initSnapfeed click handling', () => {
 
     teardown()
   })
+
+  it('resolves a custom theme into feedback config during init', () => {
+    const teardown = initSnapfeed({
+      captureConsoleErrors: false,
+      feedback: { enabled: true },
+      networkLog: { enabled: false },
+      sessionReplay: { enabled: false },
+      theme: {
+        accent: '#0f6cbd',
+        panelBackground: '#ffffff',
+      },
+      trackApiErrors: false,
+      trackErrors: false,
+      trackNavigation: false,
+    })
+
+    expect(mocks.initFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        themePreset: null,
+        theme: expect.objectContaining({
+          accent: '#0f6cbd',
+          panelBackground: '#ffffff',
+        }),
+      }),
+    )
+
+    teardown()
+  })
 })

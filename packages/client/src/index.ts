@@ -59,12 +59,25 @@ export type {
   FeedbackAdapter,
   FeedbackCategory,
   FeedbackConfig,
+  ResolvedSnapfeedTheme,
   SnapfeedConfig,
   SnapfeedPlugin,
+  SnapfeedStylePreset,
+  SnapfeedTheme,
+  SnapfeedThemeConfig,
   SnapfeedUser,
   TelemetryEvent,
 } from './types.js'
 export { FEEDBACK_CATEGORIES } from './types.js'
+export {
+  DEFAULT_SNAPFEED_STYLE_PRESET,
+  getSnapfeedStylePreset,
+  getSnapfeedStylePresets,
+  getSnapfeedTheme,
+  resolveSnapfeedTheme,
+  setSnapfeedStylePreset,
+  setSnapfeedTheme,
+} from './ui-theme.js'
 
 let initialized = false
 let originalFetch: typeof fetch | null = null

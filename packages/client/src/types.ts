@@ -4,6 +4,13 @@
  * Defines the telemetry event schema, configuration, and plugin interface.
  */
 
+import {
+  resolveSnapfeedTheme,
+  type SnapfeedStylePreset,
+  type SnapfeedTheme,
+  type SnapfeedThemeConfig,
+} from './ui-theme.js'
+
 // ── Telemetry Event ──────────────────────────────────────────────────
 
 export interface TelemetryEvent {
@@ -147,6 +154,9 @@ export interface SnapfeedConfig {
   /** Optional user identity included with all events. */
   user?: SnapfeedUser
 
+  /** Theme preset or token overrides for the feedback and annotation UI. */
+  theme?: SnapfeedThemeConfig
+
   /** Initial plugins to register. */
   plugins?: SnapfeedPlugin[]
 
@@ -176,6 +186,8 @@ export interface ResolvedConfig {
   maxConsoleErrors: number
   feedback: Required<FeedbackConfig>
   user: SnapfeedUser | null
+  theme: SnapfeedTheme
+  themePreset: SnapfeedStylePreset | null
   adapters: FeedbackAdapter[]
   rageClick: { enabled: boolean; threshold: number; windowMs: number }
   networkLog: { enabled: boolean; maxSize: number }
@@ -183,6 +195,8 @@ export interface ResolvedConfig {
 }
 
 export function resolveConfig(config: SnapfeedConfig = {}): ResolvedConfig {
+  const resolvedTheme = resolveSnapfeedTheme(config.theme)
+
   return {
     endpoint: config.endpoint ?? '/api/telemetry/events',
     flushIntervalMs: config.flushIntervalMs ?? 3000,
@@ -205,6 +219,8 @@ export function resolveConfig(config: SnapfeedConfig = {}): ResolvedConfig {
       defaultIncludeContext: config.feedback?.defaultIncludeContext ?? true,
     },
     user: config.user ?? null,
+    theme: resolvedTheme.theme,
+    themePreset: resolvedTheme.preset,
     adapters: config.adapters ?? [],
     rageClick: {
       enabled: config.rageClick?.enabled ?? true,
@@ -222,3 +238,10 @@ export function resolveConfig(config: SnapfeedConfig = {}): ResolvedConfig {
     },
   }
 }
+
+export type {
+  ResolvedSnapfeedTheme,
+  SnapfeedStylePreset,
+  SnapfeedTheme,
+  SnapfeedThemeConfig,
+} from './ui-theme.js'
