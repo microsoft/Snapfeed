@@ -28,6 +28,53 @@ export interface TelemetryEvent {
 
 export type FeedbackCategory = 'bug' | 'idea' | 'question' | 'praise' | 'other'
 
+export type FeedbackStatusTone = 'success' | 'warning' | 'error'
+
+export type FeedbackScreenshotState = 'pending' | 'ready' | 'unavailable'
+
+export type FeedbackSubmitState =
+  | { kind: 'idle' }
+  | { kind: 'submitting' }
+  | { kind: 'complete'; tone: FeedbackStatusTone; message: string }
+
+export interface FeedbackTrigger {
+  element: Element
+  x: number
+  y: number
+}
+
+export interface FeedbackControllerSnapshot {
+  x: number
+  y: number
+  text: string
+  category: FeedbackCategory
+  includeScreenshot: boolean
+  includeContext: boolean
+  screenshotState: FeedbackScreenshotState
+  submitState: FeedbackSubmitState
+  breadcrumb: string
+  targetLabel: string
+}
+
+export interface FeedbackController {
+  getSnapshot(): FeedbackControllerSnapshot
+  subscribe(listener: (snapshot: FeedbackControllerSnapshot) => void): () => void
+  setText(text: string): void
+  setCategory(category: FeedbackCategory): void
+  setIncludeScreenshot(include: boolean): void
+  setIncludeContext(include: boolean): void
+  getPayloadPreview(): Record<string, unknown>
+  getScreenshot(): string | null
+  annotate(): Promise<boolean>
+  submit(): Promise<FeedbackSubmitState>
+  dispose(): void
+}
+
+export type FeedbackTriggerHandler = (
+  controller: FeedbackController,
+  trigger: FeedbackTrigger,
+) => void
+
 export const FEEDBACK_CATEGORIES: Array<{
   id: FeedbackCategory
   emoji: string
@@ -107,7 +154,7 @@ export interface SnapfeedPlugin {
 // ── Configuration ────────────────────────────────────────────────────
 
 export interface FeedbackConfig {
-  /** Enable the Cmd+Click feedback dialog. Default: true */
+  /** Enable the Cmd+Click feedback flow. Default: true */
   enabled?: boolean
   /** Max screenshot width in pixels. Default: 1200 */
   screenshotMaxWidth?: number
@@ -125,6 +172,8 @@ export interface FeedbackConfig {
   defaultIncludeScreenshot?: boolean
   /** Attach page context by default. Default: true */
   defaultIncludeContext?: boolean
+  /** Handle Cmd+Click with a custom UI instead of the built-in overlay. */
+  onTrigger?: FeedbackTriggerHandler
 }
 
 export interface SnapfeedConfig {
@@ -184,7 +233,18 @@ export interface ResolvedConfig {
   trackApiErrors: boolean
   captureConsoleErrors: boolean
   maxConsoleErrors: number
-  feedback: Required<FeedbackConfig>
+  feedback: {
+    enabled: boolean
+    screenshotMaxWidth: number
+    screenshotQuality: number
+    backgroundColor: string
+    annotations: boolean
+    allowScreenshotToggle: boolean
+    allowContextToggle: boolean
+    defaultIncludeScreenshot: boolean
+    defaultIncludeContext: boolean
+    onTrigger: FeedbackTriggerHandler | null
+  }
   user: SnapfeedUser | null
   theme: SnapfeedTheme
   themePreset: SnapfeedStylePreset | null
@@ -217,6 +277,7 @@ export function resolveConfig(config: SnapfeedConfig = {}): ResolvedConfig {
       allowContextToggle: config.feedback?.allowContextToggle ?? true,
       defaultIncludeScreenshot: config.feedback?.defaultIncludeScreenshot ?? true,
       defaultIncludeContext: config.feedback?.defaultIncludeContext ?? true,
+      onTrigger: config.feedback?.onTrigger ?? null,
     },
     user: config.user ?? null,
     theme: resolvedTheme.theme,

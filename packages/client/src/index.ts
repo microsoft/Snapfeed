@@ -28,7 +28,11 @@ import { resolveConfig } from './types.js'
 
 export { consoleAdapter, webhookAdapter } from './adapters.js'
 export { getConsoleErrors } from './console-capture.js'
-export { gatherContext } from './feedback.js'
+export {
+  createFeedbackController,
+  gatherContext,
+  getFeedbackTrigger,
+} from './feedback.js'
 export { describeElement, getLabel, getPath, getText } from './helpers.js'
 export type {
   NetworkLog,
@@ -59,6 +63,13 @@ export type {
   FeedbackAdapter,
   FeedbackCategory,
   FeedbackConfig,
+  FeedbackController,
+  FeedbackControllerSnapshot,
+  FeedbackScreenshotState,
+  FeedbackStatusTone,
+  FeedbackSubmitState,
+  FeedbackTrigger,
+  FeedbackTriggerHandler,
   ResolvedSnapfeedTheme,
   SnapfeedConfig,
   SnapfeedPlugin,
@@ -230,7 +241,7 @@ export function initSnapfeed(config: SnapfeedConfig = {}): () => void {
   }
 
   // Register event listeners
-  if (resolved.feedback.enabled) {
+  if (resolved.feedback.enabled || resolved.feedback.onTrigger) {
     document.addEventListener('click', handleCtrlClick, { capture: true })
     cleanupFns.push(() => document.removeEventListener('click', handleCtrlClick, { capture: true }))
   }

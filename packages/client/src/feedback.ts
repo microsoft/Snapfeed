@@ -1,236 +1,39 @@
 /**
  * Feedback dialog — Cmd+Click visual feedback with screenshots.
  *
- * When the user Cmd+Clicks an element, this module:
- * 1. Gathers DOM context (data attributes, nearby images, dialog state)
- * 2. Captures a full-page screenshot with a click-position marker
- * 3. Shows a positioned dialog for the user to type feedback
- * 4. Pushes a 'feedback' telemetry event with context + screenshot
+ * The dialog is now a thin UI wrapper over a headless feedback controller.
+ * Consumers can replace the built-in UI by supplying `feedback.onTrigger`
+ * while keeping the same capture, queue, and submission behavior.
  */
 
-import { showAnnotationCanvas } from './annotation.js'
-import { getConsoleErrors } from './console-capture.js'
-import { getLabel, getPath, getText } from './helpers.js'
-import { enrichElement } from './plugins.js'
-import { flush, getSessionId, push } from './queue.js'
-import { sanitizeDetail } from './sanitize.js'
-import type { FeedbackCategory, ResolvedConfig, TelemetryEvent } from './types.js'
+import { createHeadlessFeedbackController, gatherContext } from './feedback-controller.js'
+import type {
+  FeedbackCategory,
+  FeedbackController,
+  FeedbackStatusTone,
+  FeedbackTrigger,
+  ResolvedConfig,
+} from './types.js'
 import { FEEDBACK_CATEGORIES } from './types.js'
 import { getSnapfeedTheme, setSnapfeedStylePreset, setSnapfeedTheme } from './ui-theme.js'
 
-type StatusTone = 'success' | 'warning' | 'error'
-
-type SubmitState =
-  | { kind: 'idle' }
-  | { kind: 'submitting' }
-  | { kind: 'complete'; tone: StatusTone; message: string }
-
 let feedbackOverlay: HTMLDivElement | null = null
-let pendingScreenshot: Promise<string | null> | null = null
 let currentConfig: ResolvedConfig | null = null
-let overlayKeydownCleanup: (() => void) | null = null
+let activeController: FeedbackController | null = null
+let overlayCleanup: (() => void) | null = null
+
 const OVERLAY_MARGIN = 12
 const OVERLAY_GAP = 12
-const FORM_STATE_SELECTOR =
-  'input:not([type="hidden"]):not([type="password"]), select, textarea, [role="combobox"], [role="slider"]'
-const RESERVED_ENRICHMENT_KEYS = new Set([
-  'componentName',
-  'fileName',
-  'lineNumber',
-  'columnNumber',
-])
+
+export { gatherContext }
 
 export function dismissFeedbackDialog(): void {
-  overlayKeydownCleanup?.()
-  overlayKeydownCleanup = null
+  overlayCleanup?.()
+  overlayCleanup = null
+  activeController?.dispose()
+  activeController = null
   feedbackOverlay?.remove()
   feedbackOverlay = null
-}
-
-// html2canvas is a peer dependency — loaded lazily
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let html2canvasFn: ((el: HTMLElement, opts?: unknown) => Promise<HTMLCanvasElement>) | null = null
-
-async function loadHtml2Canvas(): Promise<typeof html2canvasFn> {
-  if (html2canvasFn) return html2canvasFn
-  try {
-    // Dynamic import — works even if html2canvas is not installed
-    const mod = await import('html2canvas')
-    html2canvasFn = (mod.default ?? mod) as unknown as typeof html2canvasFn
-    return html2canvasFn
-  } catch {
-    return null
-  }
-}
-
-// ── Context gathering ────────────────────────────────────────────────
-
-function applyEnrichment(ctx: Record<string, unknown>, el: Element): void {
-  const enrichment = enrichElement(el)
-  if (!enrichment) return
-
-  if (enrichment.componentName) ctx.component = enrichment.componentName
-  if (enrichment.fileName) ctx.source_file = enrichment.fileName
-  if (enrichment.lineNumber) ctx.source_line = enrichment.lineNumber
-  if (enrichment.columnNumber) ctx.source_column = enrichment.columnNumber
-
-  for (const key in enrichment) {
-    if (!Object.hasOwn(enrichment, key)) continue
-    if (RESERVED_ENRICHMENT_KEYS.has(key)) continue
-    ctx[`plugin_${key}`] = enrichment[key]
-  }
-}
-
-function gatherBaseContext(el: Element): Record<string, unknown> {
-  const ctx: Record<string, unknown> = {
-    tag: el.tagName.toLowerCase(),
-    path: getPath(el),
-    text: getText(el),
-    label: getLabel(el),
-  }
-
-  applyEnrichment(ctx, el)
-
-  // Walk up to find data attributes
-  let cur: Element | null = el
-  while (cur && cur !== document.body) {
-    for (let index = 0; index < cur.attributes.length; index++) {
-      const attr = cur.attributes[index]
-      if (attr.name.startsWith('data-') && !ctx[attr.name]) {
-        ctx[attr.name] = attr.value
-      }
-    }
-    if (cur.tagName === 'IMG' && !ctx.img_src) {
-      ctx.img_src = (cur as HTMLImageElement).src.replace(window.location.origin, '')
-    }
-    cur = cur.parentElement
-  }
-
-  // Capture any open dialog content
-  const dialog = document.querySelector('[role="dialog"], .MuiDialog-root')
-  if (dialog) {
-    ctx.dialog_open = true
-    const title = dialog.querySelector('h2, h3, h4, h5, h6, [class*="title"]')
-    if (title) ctx.dialog_title = (title as HTMLElement).innerText?.trim().substring(0, 100)
-  }
-
-  ctx.url = window.location.pathname + window.location.search
-
-  return ctx
-}
-
-function gatherFormState(): Record<string, string> | null {
-  const formState: Record<string, string> = {}
-  let hasFormState = false
-
-  // Capture visible form/filter state (inputs, selects, checkboxes, sliders)
-  const inputs = document.querySelectorAll<
-    HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-  >(FORM_STATE_SELECTOR)
-  for (const inp of inputs) {
-    // Skip invisible elements
-    if (!inp.offsetParent && inp.tagName !== 'INPUT') continue
-    const label =
-      inp.getAttribute('aria-label') ||
-      inp.closest('[class*="FormControl"]')?.querySelector('label')?.textContent?.trim() ||
-      inp.name ||
-      inp.id ||
-      ''
-    if (!label) continue
-    let value = ''
-    if (inp instanceof HTMLInputElement && inp.type === 'checkbox') {
-      value = inp.checked ? 'true' : 'false'
-    } else if (inp.getAttribute('role') === 'slider') {
-      value = inp.getAttribute('aria-valuenow') || inp.getAttribute('aria-valuetext') || ''
-    } else {
-      value = inp.value || ''
-    }
-    if (!value) continue
-
-    formState[label.substring(0, 40)] = value.substring(0, 100)
-    hasFormState = true
-  }
-
-  return hasFormState ? formState : null
-}
-
-export function gatherContext(el: Element): Record<string, unknown> {
-  const ctx = gatherBaseContext(el)
-  const formState = gatherFormState()
-  if (formState) ctx.form_state = formState
-
-  return ctx
-}
-
-// ── Screenshot capture ───────────────────────────────────────────────
-
-async function captureScreenshot(clickX: number, clickY: number): Promise<string | null> {
-  if (!currentConfig) return null
-  const html2canvas = await loadHtml2Canvas()
-  if (!html2canvas) return null
-
-  try {
-    if (feedbackOverlay) feedbackOverlay.style.display = 'none'
-
-    const canvas = await html2canvas(document.body, {
-      useCORS: true,
-      allowTaint: true,
-      scale: 1,
-      logging: false,
-      backgroundColor: currentConfig.feedback.backgroundColor,
-      ignoreElements: (el: Element) => el === feedbackOverlay,
-    } as unknown)
-
-    if (feedbackOverlay) feedbackOverlay.style.display = ''
-
-    // Scale down if wider than max
-    const maxWidth = currentConfig.feedback.screenshotMaxWidth
-    let finalCanvas = canvas
-    if (canvas.width > maxWidth) {
-      const ratio = maxWidth / canvas.width
-      const scaled = document.createElement('canvas')
-      scaled.width = maxWidth
-      scaled.height = Math.round(canvas.height * ratio)
-      const sctx = getCanvasContext(scaled)
-      sctx.drawImage(canvas, 0, 0, scaled.width, scaled.height)
-      finalCanvas = scaled
-    }
-
-    // Draw click position marker (red crosshair)
-    const scaleX = finalCanvas.width / window.innerWidth
-    const scaleY = finalCanvas.height / window.innerHeight
-    const mx = clickX * scaleX
-    const my = clickY * scaleY
-    const ctx = getCanvasContext(finalCanvas)
-
-    ctx.strokeStyle = '#ff0000'
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.arc(mx, my, 20, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.fillStyle = '#ff0000'
-    ctx.beginPath()
-    ctx.arc(mx, my, 4, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.beginPath()
-    ctx.moveTo(mx - 30, my)
-    ctx.lineTo(mx - 8, my)
-    ctx.moveTo(mx + 8, my)
-    ctx.lineTo(mx + 30, my)
-    ctx.moveTo(mx, my - 30)
-    ctx.lineTo(mx, my - 8)
-    ctx.moveTo(mx, my + 8)
-    ctx.lineTo(mx, my + 30)
-    ctx.stroke()
-
-    const quality = currentConfig.feedback.screenshotQuality
-    const dataUrl = finalCanvas.toDataURL('image/jpeg', quality)
-    return dataUrl.split(',')[1] || null
-  } catch (err) {
-    console.warn('[snapfeed] Screenshot capture failed:', err)
-    if (feedbackOverlay) feedbackOverlay.style.display = ''
-    return null
-  }
 }
 
 function getViewportBounds(): {
@@ -248,6 +51,7 @@ function getViewportBounds(): {
       height: viewport.height,
     }
   }
+
   return {
     left: 0,
     top: 0,
@@ -313,15 +117,6 @@ function escapeAttribute(value: string): string {
   return value.replace(/"/g, '&quot;')
 }
 
-function getCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
-  const context = canvas.getContext('2d')
-  if (!context) {
-    throw new Error('Feedback screenshot canvas context is unavailable')
-  }
-
-  return context
-}
-
 function getRequiredElement<T extends HTMLElement>(parent: ParentNode, selector: string): T {
   const element = parent.querySelector<T>(selector)
   if (!element) {
@@ -331,16 +126,54 @@ function getRequiredElement<T extends HTMLElement>(parent: ParentNode, selector:
   return element
 }
 
-// ── Feedback dialog UI ───────────────────────────────────────────────
+function isFeedbackController(value: Element | FeedbackController): value is FeedbackController {
+  return typeof (value as FeedbackController).getSnapshot === 'function'
+}
 
-export function showFeedbackDialog(el: Element, x: number, y: number): void {
+function getResolvedConfig(): ResolvedConfig {
+  if (!currentConfig) {
+    throw new Error('Snapfeed feedback must be initialized before creating feedback controllers.')
+  }
+
+  return currentConfig
+}
+
+export function createFeedbackController(trigger: FeedbackTrigger): FeedbackController {
+  return createHeadlessFeedbackController(getResolvedConfig(), trigger)
+}
+
+export function getFeedbackTrigger(e: MouseEvent): FeedbackTrigger | null {
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return null
+
+  const element = e.target as Element | null
+  if (!element) return null
+  if (feedbackOverlay?.contains(element)) return null
+
+  return {
+    element,
+    x: e.clientX,
+    y: e.clientY,
+  }
+}
+
+export function showFeedbackDialog(el: Element, x: number, y: number): void
+export function showFeedbackDialog(controller: FeedbackController): void
+export function showFeedbackDialog(
+  targetOrController: Element | FeedbackController,
+  x?: number,
+  y?: number,
+): void {
   dismissFeedbackDialog()
 
-  if (!currentConfig) return
-
-  const baseContext = gatherBaseContext(el)
+  const controller = isFeedbackController(targetOrController)
+    ? targetOrController
+    : createFeedbackController({
+        element: targetOrController,
+        x: x ?? 0,
+        y: y ?? 0,
+      })
   const theme = getSnapfeedTheme()
-  const feedbackConfig = currentConfig.feedback
+  const feedbackConfig = getResolvedConfig().feedback
   const allowScreenshotToggle = feedbackConfig.allowScreenshotToggle
   const allowContextToggle = feedbackConfig.allowContextToggle
   const screenshotControlVisible = allowScreenshotToggle || feedbackConfig.annotations
@@ -348,48 +181,13 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
   const viewport = getViewportBounds()
   const dialogWidth = Math.min(420, Math.max(220, viewport.width - OVERLAY_MARGIN * 2))
 
-  // Start capturing screenshot immediately (async, runs while user types)
-  pendingScreenshot = captureScreenshot(x, y)
-
-  // Build breadcrumb from page + context
-  const crumbs: string[] = []
-  const page = window.location.pathname.split('/').filter(Boolean)
-  crumbs.push(...page)
-  if (baseContext['data-feedback-context']) {
-    crumbs.push(baseContext['data-feedback-context'] as string)
-  }
-  if (baseContext.dialog_open) crumbs.push('dialog')
-  if (baseContext['data-index'] != null) crumbs.push(`burst:${baseContext['data-index']}`)
-  if (baseContext.img_src) {
-    const fname = (baseContext.img_src as string).split('/').pop()?.split('?')[0]
-    if (fname) crumbs.push(fname)
-  }
-  // Include component name from plugin enrichment
-  if (baseContext.component) crumbs.push(`<${baseContext.component as string}>`)
-  const breadcrumb = crumbs.join(' › ') || 'page'
-
-  let selectedCategory: FeedbackCategory = 'bug'
-  let includeScreenshot = feedbackConfig.defaultIncludeScreenshot
-  let includeContext = feedbackConfig.defaultIncludeContext
-  let screenshotState: 'pending' | 'ready' | 'unavailable' = includeScreenshot ? 'pending' : 'ready'
-  let screenshotData: string | null = null
-  let submitState: SubmitState = { kind: 'idle' }
+  let snapshot = controller.getSnapshot()
   let detailsExpanded = false
   let payloadPreviewExpanded = false
   let destroyed = false
-  let fullContext: Record<string, unknown> | null = null
-
-  const getFullContext = (): Record<string, unknown> => {
-    if (fullContext) return fullContext
-
-    const nextContext = { ...baseContext }
-    const formState = gatherFormState()
-    if (formState) nextContext.form_state = formState
-    fullContext = nextContext
-    return nextContext
-  }
 
   feedbackOverlay = document.createElement('div')
+  activeController = controller
   feedbackOverlay.dataset.snapfeedOverlay = 'feedback-dialog'
   feedbackOverlay.style.cssText = `
     position: fixed; z-index: 99999;
@@ -401,7 +199,6 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
     border-radius: ${theme.panelRadius}; box-shadow: ${theme.panelShadow};
     font-family: ${theme.fontFamily}; font-size: 13px;
   `
-  // Stop ALL events from leaking out
   for (const evt of [
     'keydown',
     'keyup',
@@ -417,18 +214,11 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
     feedbackOverlay.addEventListener(evt, (e) => e.stopPropagation())
   }
 
-  const targetLabel = (
-    (baseContext.label as string) ||
-    (baseContext.tag as string) ||
-    ''
-  ).substring(0, 60)
-
-  // Build category chips HTML
   const chipsHtml = FEEDBACK_CATEGORIES.map(
-    (c) =>
-      `<button type="button" data-cat="${c.id}" style="padding:4px 10px; border-radius:12px; border:1px solid ${c.id === 'bug' ? theme.accent : theme.panelBorder};
-      background:${c.id === 'bug' ? theme.accentSoft : 'transparent'}; color:${theme.panelText}; cursor:pointer;
-      font-size:12px; font-family:inherit; white-space:nowrap;">${c.emoji} ${c.label}</button>`,
+    (category) =>
+      `<button type="button" data-cat="${category.id}" style="padding:4px 10px; border-radius:12px; border:1px solid ${category.id === snapshot.category ? theme.accent : theme.panelBorder};
+      background:${category.id === snapshot.category ? theme.accentSoft : 'transparent'}; color:${theme.panelText}; cursor:pointer;
+      font-size:12px; font-family:inherit; white-space:nowrap;">${category.emoji} ${category.label}</button>`,
   ).join('')
 
   feedbackOverlay.innerHTML = `
@@ -440,9 +230,9 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
       <button type="button" aria-label="Close feedback dialog" id="__sf_close" style="background:none; border:none; color:${theme.mutedText}; cursor:pointer; font-size:16px; line-height:1; padding:2px 4px">✕</button>
     </div>
     <div style="color:${theme.mutedText}; font-size:11px; margin-bottom:10px; line-height:1.45">
-      <div style="margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${escapeAttribute(breadcrumb)}">${breadcrumb}</div>
+      <div style="margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${escapeAttribute(snapshot.breadcrumb)}">${snapshot.breadcrumb}</div>
       <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap"
-        title="${escapeAttribute(targetLabel)}">→ ${targetLabel}</div>
+        title="${escapeAttribute(snapshot.targetLabel)}">→ ${snapshot.targetLabel}</div>
     </div>
     <div id="__sf_chips" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap">${chipsHtml}</div>
     <textarea id="__sf_text" rows="5" placeholder="What's wrong / what should change?"
@@ -459,11 +249,11 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
       <div id="__sf_controls" style="display:none; flex-direction:column; gap:8px; padding:10px; border:1px solid ${theme.panelBorder}; border-radius:${theme.panelRadius}; background:${theme.accentSoft};">
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:${theme.panelText}; font-size:12px">
         <label id="__sf_screenshot_row" style="display:${screenshotControlVisible ? 'inline-flex' : 'none'}; gap:6px; align-items:center; cursor:pointer;">
-          <input id="__sf_include_screenshot" type="checkbox" ${includeScreenshot ? 'checked' : ''} />
+          <input id="__sf_include_screenshot" type="checkbox" ${snapshot.includeScreenshot ? 'checked' : ''} />
           <span>Attach screenshot</span>
         </label>
         <label id="__sf_context_row" style="display:${contextControlVisible ? 'inline-flex' : 'none'}; gap:6px; align-items:center; cursor:pointer;">
-          <input id="__sf_include_context" type="checkbox" ${includeContext ? 'checked' : ''} />
+          <input id="__sf_include_context" type="checkbox" ${snapshot.includeContext ? 'checked' : ''} />
           <span>Attach page context</span>
         </label>
       </div>
@@ -474,16 +264,16 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
         <pre id="__sf_payload_preview" style="display:none; margin:0; padding:10px; max-height:180px; overflow:auto; box-sizing:border-box; border:1px solid ${theme.panelBorder}; border-radius:${theme.panelRadius}; background:${theme.inputBackground}; color:${theme.inputText}; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word;"></pre>
       </div>
     </div>
-            <div style="display:flex; gap:10px; margin-top:8px; align-items:flex-end; justify-content:space-between; flex-wrap:wrap">
-              <span style="color:${theme.mutedText}; font-size:10px; line-height:1.4; flex:1; min-width:180px; padding-bottom:2px;">Cmd/Ctrl+Enter to send · Esc to cancel</span>
-              <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
-          <button type="button" id="__sf_annotate" title="Annotate screenshot" style="display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:34px; padding:0 12px; background:${theme.accentSoft}; color:${theme.panelText}; border:1px solid ${theme.accent};
-            border-radius:${theme.panelRadius}; cursor:pointer; font-size:12px; font-weight:500;">✏️ <span>Annotate</span></button>
-          <button type="button" id="__sf_cancel" style="display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:0 12px; background:none; color:${theme.mutedText}; border:1px solid ${theme.panelBorder};
-            border-radius:${theme.panelRadius}; cursor:pointer; font-size:12px;">Cancel</button>
-          <button type="button" id="__sf_send" style="display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:0 14px; background:${theme.accent}; color:${theme.accentContrast}; border:none;
-            border-radius:${theme.panelRadius}; cursor:pointer; font-weight:600; font-size:12px;">Send</button>
-              </div>
+    <div style="display:flex; gap:10px; margin-top:8px; align-items:flex-end; justify-content:space-between; flex-wrap:wrap">
+      <span style="color:${theme.mutedText}; font-size:10px; line-height:1.4; flex:1; min-width:180px; padding-bottom:2px;">Cmd/Ctrl+Enter to send · Esc to cancel</span>
+      <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
+        <button type="button" id="__sf_annotate" title="Annotate screenshot" style="display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:34px; padding:0 12px; background:${theme.accentSoft}; color:${theme.panelText}; border:1px solid ${theme.accent};
+          border-radius:${theme.panelRadius}; cursor:pointer; font-size:12px; font-weight:500;">✏️ <span>Annotate</span></button>
+        <button type="button" id="__sf_cancel" style="display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:0 12px; background:none; color:${theme.mutedText}; border:1px solid ${theme.panelBorder};
+          border-radius:${theme.panelRadius}; cursor:pointer; font-size:12px;">Cancel</button>
+        <button type="button" id="__sf_send" style="display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:0 14px; background:${theme.accent}; color:${theme.accentContrast}; border:none;
+          border-radius:${theme.panelRadius}; cursor:pointer; font-weight:600; font-size:12px;">Send</button>
+      </div>
     </div>
   `
   document.body.appendChild(feedbackOverlay)
@@ -511,7 +301,15 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
   )
   let positionRaf = 0
 
-  const toneStyles: Record<StatusTone, { background: string; color: string }> = {
+  const unsubscribe = controller.subscribe((nextSnapshot) => {
+    snapshot = nextSnapshot
+    if (textarea.value !== nextSnapshot.text) {
+      textarea.value = nextSnapshot.text
+    }
+    updateUi()
+  })
+
+  const toneStyles: Record<FeedbackStatusTone, { background: string; color: string }> = {
     success: { background: theme.accentSoft, color: theme.panelText },
     warning: {
       background: 'rgba(250, 204, 21, 0.12)',
@@ -531,94 +329,43 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
     positionRaf = requestAnimationFrame(() => {
       positionRaf = 0
       if (!isActiveOverlay()) return
-      positionOverlay(overlay, x, y)
+      positionOverlay(overlay, snapshot.x, snapshot.y)
     })
   }
 
   const getDetailsSummary = (): string => {
     const parts: string[] = []
     if (screenshotControlVisible) {
-      parts.push(includeScreenshot ? 'Screenshot on' : 'Screenshot off')
+      parts.push(snapshot.includeScreenshot ? 'Screenshot on' : 'Screenshot off')
     }
     if (contextControlVisible) {
-      parts.push(includeContext ? 'Context on' : 'Context off')
+      parts.push(snapshot.includeContext ? 'Context on' : 'Context off')
     }
     return parts.length > 0 ? `Details · ${parts.join(' · ')}` : 'Details'
   }
 
-  const getBaseDetail = (): Record<string, unknown> => {
-    const detail: Record<string, unknown> = {
-      category: selectedCategory,
-      screenshot_included: includeScreenshot,
-      page_context_included: includeContext,
-    }
-    if (currentConfig?.user) detail.user = currentConfig.user
-    return detail
-  }
-
-  const getSanitizedDetail = (): Record<string, unknown> => {
-    const detail = getBaseDetail()
-    if (includeContext) {
-      Object.assign(detail, getFullContext())
-      const consoleErrors = getConsoleErrors()
-      if (consoleErrors.length > 0) detail.console_errors = consoleErrors
-
-      // Attach network log if available
-      const netLog = (window as unknown as Record<string, unknown>).__snapfeedNetworkLog as {
-        getEntries?: () => unknown[]
-      } | null
-      if (netLog?.getEntries) {
-        const entries = netLog.getEntries()
-        if (entries.length > 0) detail.network_log = entries
-      }
-
-      // Attach session replay if available
-      const replay = (window as unknown as Record<string, unknown>).__snapfeedSessionReplay as {
-        getEvents?: () => unknown[]
-      } | null
-      if (replay?.getEvents) {
-        const events = replay.getEvents()
-        if (events.length > 0) detail.replay_data = events
-      }
-    }
-    return sanitizeDetail(detail)
-  }
-
-  const getPayloadPreview = (): Record<string, unknown> => ({
-    event_type: 'feedback',
-    page: window.location.pathname,
-    target: textarea.value.trim() || null,
-    detail: getSanitizedDetail(),
-    screenshot: includeScreenshot
-      ? screenshotState === 'ready'
-        ? '[base64 screenshot attached]'
-        : screenshotState === 'pending'
-          ? '[screenshot capture pending]'
-          : null
-      : null,
-  })
-
-  const updateStatus = (message: string, tone?: StatusTone) => {
+  const updateStatus = (message: string, tone?: FeedbackStatusTone) => {
     status.textContent = message
     status.style.padding = message ? '8px 10px' : '0'
     status.style.borderRadius = theme.panelRadius
     if (tone) {
       status.style.background = toneStyles[tone].background
       status.style.color = toneStyles[tone].color
-    } else {
-      status.style.background = 'transparent'
-      status.style.color = theme.mutedText
+      return
     }
+
+    status.style.background = 'transparent'
+    status.style.color = theme.mutedText
   }
 
   const updateUi = () => {
-    const isSubmitting = submitState.kind === 'submitting'
-    const completion = submitState.kind === 'complete' ? submitState : null
-    const hasText = textarea.value.trim().length > 0
+    const isSubmitting = snapshot.submitState.kind === 'submitting'
+    const completion = snapshot.submitState.kind === 'complete' ? snapshot.submitState : null
+    const hasText = snapshot.text.trim().length > 0
 
     textarea.disabled = isSubmitting || completion !== null
     chipButtons.forEach((button) => {
-      const isActive = button.dataset.cat === selectedCategory
+      const isActive = button.dataset.cat === snapshot.category
       button.disabled = isSubmitting || completion !== null
       button.style.border = `1px solid ${isActive ? theme.accent : theme.panelBorder}`
       button.style.background = isActive ? theme.accentSoft : 'transparent'
@@ -627,15 +374,15 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
     })
 
     if (screenshotCheckbox) {
-      screenshotCheckbox.checked = includeScreenshot
+      screenshotCheckbox.checked = snapshot.includeScreenshot
       screenshotCheckbox.disabled =
         isSubmitting ||
         completion !== null ||
-        screenshotState === 'unavailable' ||
+        snapshot.screenshotState === 'unavailable' ||
         !allowScreenshotToggle
     }
     if (contextCheckbox) {
-      contextCheckbox.checked = includeContext
+      contextCheckbox.checked = snapshot.includeContext
       contextCheckbox.disabled = isSubmitting || completion !== null || !allowContextToggle
     }
 
@@ -658,7 +405,7 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
       payloadChevron.textContent = payloadPreviewExpanded ? 'Hide' : 'Show'
       payloadPreview.style.display = payloadPreviewExpanded ? 'block' : 'none'
       if (payloadPreviewExpanded) {
-        payloadPreview.textContent = JSON.stringify(getPayloadPreview(), null, 2)
+        payloadPreview.textContent = JSON.stringify(controller.getPayloadPreview(), null, 2)
       }
     }
 
@@ -666,8 +413,8 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
       annotateButton,
       Boolean(
         feedbackConfig.annotations &&
-          includeScreenshot &&
-          screenshotState === 'ready' &&
+          snapshot.includeScreenshot &&
+          snapshot.screenshotState === 'ready' &&
           !isSubmitting &&
           completion === null,
       ),
@@ -686,7 +433,7 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
 
     cancelButton.style.display = ''
     sendButton.textContent = isSubmitting
-      ? includeScreenshot && screenshotState === 'pending'
+      ? snapshot.includeScreenshot && snapshot.screenshotState === 'pending'
         ? 'Preparing...'
         : 'Sending...'
       : 'Send'
@@ -694,7 +441,7 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
 
     if (isSubmitting) {
       updateStatus(
-        includeScreenshot && screenshotState === 'pending'
+        snapshot.includeScreenshot && snapshot.screenshotState === 'pending'
           ? 'Finishing screenshot capture before sending. You can keep the dialog open.'
           : 'Sending feedback...',
       )
@@ -702,19 +449,19 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
       return
     }
 
-    if (!includeScreenshot) {
+    if (!snapshot.includeScreenshot) {
       updateStatus('Screenshot will be skipped for this report.')
       schedulePosition()
       return
     }
 
-    if (screenshotState === 'pending') {
+    if (snapshot.screenshotState === 'pending') {
       updateStatus('Preparing screenshot in the background. You can keep typing while it finishes.')
       schedulePosition()
       return
     }
 
-    if (screenshotState === 'ready') {
+    if (snapshot.screenshotState === 'ready') {
       updateStatus(
         feedbackConfig.annotations
           ? 'Screenshot attached. You can annotate it before sending if needed.'
@@ -728,29 +475,31 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
     schedulePosition()
   }
 
-  // Category chip click handling
   chipsContainer.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('button[data-cat]') as HTMLButtonElement | null
-    if (!btn || submitState.kind !== 'idle') return
-    selectedCategory = btn.dataset.cat as FeedbackCategory
-    updateUi()
+    const button = (e.target as HTMLElement).closest('button[data-cat]') as HTMLButtonElement | null
+    if (!button || snapshot.submitState.kind !== 'idle') return
+    controller.setCategory(button.dataset.cat as FeedbackCategory)
   })
 
   const focusTextarea = () => {
-    if (!isActiveOverlay() || submitState.kind !== 'idle') return
+    if (!isActiveOverlay() || snapshot.submitState.kind !== 'idle') return
     textarea.focus({ preventScroll: true })
     textarea.setSelectionRange(textarea.value.length, textarea.value.length)
   }
+
+  textarea.value = snapshot.text
   requestAnimationFrame(() => {
     focusTextarea()
     if (document.activeElement !== textarea) {
       setTimeout(focusTextarea, 0)
     }
   })
-  textarea.addEventListener('input', updateUi)
+  textarea.addEventListener('input', () => {
+    controller.setText(textarea.value)
+  })
 
   const close = () => {
-    if (submitState.kind === 'submitting') return
+    if (snapshot.submitState.kind === 'submitting') return
     dismissFeedbackDialog()
   }
 
@@ -758,163 +507,61 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
   closeButton.onclick = close
 
   screenshotCheckbox?.addEventListener('change', () => {
-    if (submitState.kind !== 'idle') return
-    includeScreenshot = screenshotCheckbox.checked
-    if (!includeScreenshot) detailsExpanded = true
-    updateUi()
+    if (snapshot.submitState.kind !== 'idle') return
+    if (!screenshotCheckbox.checked) detailsExpanded = true
+    controller.setIncludeScreenshot(screenshotCheckbox.checked)
   })
   contextCheckbox?.addEventListener('change', () => {
-    if (submitState.kind !== 'idle') return
-    includeContext = contextCheckbox.checked
-    if (!includeContext) detailsExpanded = true
-    updateUi()
+    if (snapshot.submitState.kind !== 'idle') return
+    if (!contextCheckbox.checked) detailsExpanded = true
+    controller.setIncludeContext(contextCheckbox.checked)
   })
 
   detailsToggle?.addEventListener('click', () => {
-    if (submitState.kind !== 'idle') return
+    if (snapshot.submitState.kind !== 'idle') return
     detailsExpanded = !detailsExpanded
     updateUi()
   })
 
   payloadToggle?.addEventListener('click', () => {
-    if (submitState.kind !== 'idle') return
+    if (snapshot.submitState.kind !== 'idle') return
     payloadPreviewExpanded = !payloadPreviewExpanded
     detailsExpanded = true
     updateUi()
   })
 
-  // Annotate button — opens annotation canvas on the screenshot
   annotateButton.onclick = async () => {
-    if (!feedbackConfig.annotations || submitState.kind !== 'idle' || !includeScreenshot) return
-    const screenshot = await pendingScreenshot
-    if (!isActiveOverlay()) return
-    if (!screenshot) {
-      screenshotState = 'unavailable'
-      includeScreenshot = false
-      updateUi()
-      return
-    }
-    screenshotData = screenshot
-    screenshotState = 'ready'
+    if (!feedbackConfig.annotations || snapshot.submitState.kind !== 'idle') return
     overlay.style.display = 'none'
-    const annotated = await showAnnotationCanvas(screenshot, feedbackConfig.screenshotQuality)
+    await controller.annotate()
     if (!isActiveOverlay()) return
     overlay.style.display = ''
-    if (annotated) {
-      screenshotData = annotated
-      pendingScreenshot = Promise.resolve(annotated)
-      screenshotState = 'ready'
-    }
     focusTextarea()
     updateUi()
   }
 
   const submit = async () => {
     if (!isActiveOverlay()) return
-    if (submitState.kind === 'complete') {
+    if (snapshot.submitState.kind === 'complete') {
       close()
       return
     }
-    if (submitState.kind === 'submitting') return
-
-    const text = textarea.value.trim()
-    if (!text) {
+    if (snapshot.submitState.kind === 'submitting') return
+    if (!snapshot.text.trim()) {
       focusTextarea()
       updateUi()
       return
     }
 
-    submitState = { kind: 'submitting' }
-    updateUi()
-
-    let screenshot: string | null = null
-    if (includeScreenshot) {
-      screenshot = screenshotData ?? (await pendingScreenshot)
-      if (!isActiveOverlay()) return
-      screenshotData = screenshot
-      if (!screenshot) {
-        screenshotState = 'unavailable'
-        includeScreenshot = false
-      } else {
-        screenshotState = 'ready'
-      }
-      updateUi()
-    }
-
-    const sanitizedContext = getSanitizedDetail()
-    push('feedback', text, sanitizedContext, includeScreenshot ? screenshot : null)
-
-    const flushOk = await flush()
+    await controller.submit()
     if (!isActiveOverlay()) return
-
-    const adapters = currentConfig?.adapters ?? []
-
-    const adapterEvent: TelemetryEvent = {
-      session_id: getSessionId(),
-      seq: -1,
-      ts: new Date().toISOString(),
-      event_type: 'feedback',
-      page: window.location.pathname,
-      target: text,
-      detail: sanitizedContext,
-      screenshot: includeScreenshot ? screenshot : null,
-    }
-
-    const adapterSettled = await Promise.allSettled(
-      adapters.map(async (adapter) => ({
-        name: adapter.name,
-        result: await adapter.send(adapterEvent),
-      })),
-    )
-    if (!isActiveOverlay()) return
-
-    const adapterFailures = adapterSettled.flatMap((entry) => {
-      if (entry.status === 'rejected') return ['adapter']
-      return entry.value.result.ok ? [] : [entry.value.name]
-    })
-
-    let completion: SubmitState
-    if (!flushOk || adapterFailures.length > 0) {
-      completion = {
-        kind: 'complete',
-        tone: 'warning',
-        message: [
-          flushOk
-            ? 'Feedback saved and sent from this page.'
-            : 'Feedback saved locally. Server delivery will retry automatically.',
-          adapterFailures.length > 0
-            ? `Adapter delivery failed: ${adapterFailures.join(', ')}.`
-            : '',
-        ]
-          .filter(Boolean)
-          .join(' '),
-      }
-    } else {
-      completion = {
-        kind: 'complete',
-        tone: 'success',
-        message: includeScreenshot
-          ? 'Feedback sent with the current screenshot attached.'
-          : 'Feedback sent without a screenshot.',
-      }
-    }
-
-    submitState = completion
-
-    const sizeKb = screenshot ? Math.round((screenshot.length * 0.75) / 1024) : 0
-    const catEmoji = FEEDBACK_CATEGORIES.find((c) => c.id === selectedCategory)?.emoji ?? ''
-    console.log(
-      `%c📝 Feedback sent%c ${catEmoji} ${text}%c ${screenshot ? `(+${sizeKb}KB screenshot)` : '(no screenshot)'}`,
-      'color: #a6e3a1; font-weight: bold',
-      'color: #cdd6f4',
-      'color: #6c7086',
-    )
     updateUi()
   }
 
   sendButton.onclick = () => {
     void submit()
   }
+
   const onKeyDown = (e: KeyboardEvent) => {
     if (!isActiveOverlay()) return
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -929,12 +576,14 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
   const onViewportChange = () => {
     schedulePosition()
   }
+
   document.addEventListener('keydown', onKeyDown, true)
   window.addEventListener('resize', onViewportChange)
   window.visualViewport?.addEventListener('resize', onViewportChange)
   window.visualViewport?.addEventListener('scroll', onViewportChange)
-  overlayKeydownCleanup = () => {
+  overlayCleanup = () => {
     destroyed = true
+    unsubscribe()
     if (positionRaf) cancelAnimationFrame(positionRaf)
     document.removeEventListener('keydown', onKeyDown, true)
     window.removeEventListener('resize', onViewportChange)
@@ -942,32 +591,25 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
     window.visualViewport?.removeEventListener('scroll', onViewportChange)
   }
 
-  void pendingScreenshot.then((result) => {
-    if (!isActiveOverlay()) return
-    screenshotData = result
-    if (!result) {
-      screenshotState = 'unavailable'
-      includeScreenshot = false
-    } else {
-      screenshotState = 'ready'
-    }
-    updateUi()
-  })
-
   updateUi()
   schedulePosition()
 }
 
-// ── Event handlers (exported for use by init) ────────────────────────
-
 export function handleCtrlClick(e: MouseEvent): void {
-  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return
-  const el = e.target as Element
-  if (!el) return
-  if (feedbackOverlay?.contains(el)) return
+  const trigger = getFeedbackTrigger(e)
+  if (!trigger) return
+
   e.preventDefault()
   e.stopPropagation()
-  showFeedbackDialog(el, e.clientX, e.clientY)
+
+  const controller = createFeedbackController(trigger)
+  const config = getResolvedConfig()
+  if (config.feedback.onTrigger) {
+    config.feedback.onTrigger(controller, trigger)
+    return
+  }
+
+  showFeedbackDialog(controller)
 }
 
 export function initFeedback(config: ResolvedConfig): void {

@@ -27,7 +27,14 @@ vi.mock('html2canvas', () => ({
   }),
 }))
 
-import { dismissFeedbackDialog, initFeedback, showFeedbackDialog } from './feedback.js'
+import {
+  createFeedbackController,
+  dismissFeedbackDialog,
+  getFeedbackTrigger,
+  handleCtrlClick,
+  initFeedback,
+  showFeedbackDialog,
+} from './feedback.js'
 import * as queue from './queue.js'
 import { resolveConfig } from './types.js'
 
@@ -334,5 +341,120 @@ describe('feedback overlay', () => {
     expect(overlay.style.background).toBe('rgb(245, 249, 255)')
     expect(overlay.style.color).toBe('rgb(18, 52, 77)')
     expect(overlay.innerHTML).toContain('#0f6cbd')
+  })
+})
+
+describe('feedback controller', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(createCanvasContext())
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(
+      'data:image/jpeg;base64,ZmFrZS1pbWFnZQ==',
+    )
+    initFeedback(
+      resolveConfig({
+        endpoint: '/api/test-feedback',
+        feedback: {
+          enabled: true,
+          annotations: true,
+          allowScreenshotToggle: true,
+          allowContextToggle: true,
+        },
+        captureConsoleErrors: true,
+      }),
+    )
+  })
+
+  afterEach(() => {
+    dismissFeedbackDialog()
+    document.body.innerHTML = ''
+  })
+
+  it('creates a headless controller that exposes payload preview and submit state', async () => {
+    const pushSpy = vi.spyOn(queue, 'push').mockImplementation(() => {})
+    vi.spyOn(queue, 'flush').mockResolvedValue(true)
+
+    const target = createTarget()
+    const controller = createFeedbackController({
+      element: target,
+      x: 120,
+      y: 80,
+    })
+
+    expect(controller.getSnapshot().screenshotState).toBe('pending')
+
+    await flushUi()
+
+    controller.setText('Controller-submitted feedback')
+    controller.setIncludeContext(false)
+
+    expect(controller.getPayloadPreview()).toEqual(
+      expect.objectContaining({
+        event_type: 'feedback',
+        target: 'Controller-submitted feedback',
+        screenshot: '[base64 screenshot attached]',
+      }),
+    )
+
+    const result = await controller.submit()
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        kind: 'complete',
+        tone: 'success',
+      }),
+    )
+    expect(pushSpy).toHaveBeenCalledWith(
+      'feedback',
+      'Controller-submitted feedback',
+      expect.objectContaining({
+        screenshot_included: true,
+        page_context_included: false,
+      }),
+      expect.any(String),
+    )
+  })
+
+  it('routes Cmd/Ctrl-click into a custom trigger handler without opening the overlay', async () => {
+    const onTrigger = vi.fn()
+    initFeedback(
+      resolveConfig({
+        endpoint: '/api/test-feedback',
+        feedback: {
+          enabled: false,
+          onTrigger,
+        },
+      }),
+    )
+
+    const target = createTarget()
+    const event = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 32,
+      clientY: 48,
+      metaKey: true,
+    })
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: target,
+    })
+
+    expect(getFeedbackTrigger(event)).toEqual({
+      element: target,
+      x: 32,
+      y: 48,
+    })
+
+    handleCtrlClick(event)
+    await flushUi()
+
+    expect(onTrigger).toHaveBeenCalledTimes(1)
+    expect(onTrigger.mock.calls[0]?.[1]).toEqual({
+      element: target,
+      x: 32,
+      y: 48,
+    })
+    expect(document.querySelector('[data-snapfeed-overlay="feedback-dialog"]')).toBeNull()
   })
 })

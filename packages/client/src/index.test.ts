@@ -184,4 +184,26 @@ describe('initSnapfeed click handling', () => {
 
     teardown()
   })
+
+  it('registers the feedback click listener when using a custom trigger handler only', () => {
+    const addEventListenerSpy = vi.spyOn(document, 'addEventListener')
+
+    const teardown = initSnapfeed({
+      captureConsoleErrors: false,
+      feedback: {
+        enabled: false,
+        onTrigger: vi.fn(),
+      },
+      networkLog: { enabled: false },
+      sessionReplay: { enabled: false },
+      trackApiErrors: false,
+      trackErrors: false,
+      trackNavigation: false,
+    })
+
+    const clickRegistrations = addEventListenerSpy.mock.calls.filter(([type]) => type === 'click')
+    expect(clickRegistrations).toHaveLength(2)
+
+    teardown()
+  })
 })
