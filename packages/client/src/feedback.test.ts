@@ -231,6 +231,26 @@ describe('feedback overlay', () => {
     expect(payloadPreview.textContent).not.toMatch(/"path"/)
   })
 
+  it('defers the global form-state scan until context payload is requested', async () => {
+    const querySelectorAllSpy = vi.spyOn(document, 'querySelectorAll')
+    const target = createTarget()
+
+    showFeedbackDialog(target, 120, 80)
+    await flushUi()
+
+    const detailsToggle = document.getElementById('__sf_details_toggle') as HTMLButtonElement
+    const payloadToggle = document.getElementById('__sf_payload_toggle') as HTMLButtonElement
+    const formStateSelector =
+      'input:not([type="hidden"]):not([type="password"]), select, textarea, [role="combobox"], [role="slider"]'
+
+    expect(querySelectorAllSpy).not.toHaveBeenCalledWith(formStateSelector)
+
+    detailsToggle.click()
+    payloadToggle.click()
+
+    expect(querySelectorAllSpy).toHaveBeenCalledWith(formStateSelector)
+  })
+
   it('shows a warning state when the backend flush fails', async () => {
     vi.spyOn(queue, 'push').mockImplementation(() => {})
     vi.spyOn(queue, 'flush').mockResolvedValue(false)

@@ -5,7 +5,6 @@ import {
   createSessionReplay,
   cssPath,
   type MutationData,
-  type ReplayEvent,
   type SessionReplay,
 } from './session-replay.js'
 
@@ -167,7 +166,7 @@ describe('createSessionReplay', () => {
 
       // Manually synthesise an old event via scroll, then fast-forward time
       window.dispatchEvent(new Event('scroll'))
-      const events = short.getEvents()
+      short.getEvents()
 
       // Now fake time forward by 2 seconds
       const spy = vi.spyOn(Date, 'now')
@@ -221,7 +220,11 @@ describe('createSessionReplay', () => {
 
   describe('throttling', () => {
     it('deduplicates rapid scroll events within the throttle window', () => {
-      const r = createSessionReplay({ windowSec: 60, scrollThrottleMs: 200, maxEvents: 500 })
+      const r = createSessionReplay({
+        windowSec: 60,
+        scrollThrottleMs: 200,
+        maxEvents: 500,
+      })
       r.start()
 
       // Fire many scroll events at the "same" timestamp
@@ -241,7 +244,11 @@ describe('createSessionReplay', () => {
     })
 
     it('deduplicates rapid mousemove events within the throttle window', () => {
-      const r = createSessionReplay({ windowSec: 60, mouseMoveThrottleMs: 100, maxEvents: 500 })
+      const r = createSessionReplay({
+        windowSec: 60,
+        mouseMoveThrottleMs: 100,
+        maxEvents: 500,
+      })
       r.start()
 
       const fixed = Date.now()
@@ -259,7 +266,11 @@ describe('createSessionReplay', () => {
     })
 
     it('allows events after throttle window expires', () => {
-      const r = createSessionReplay({ windowSec: 60, scrollThrottleMs: 200, maxEvents: 500 })
+      const r = createSessionReplay({
+        windowSec: 60,
+        scrollThrottleMs: 200,
+        maxEvents: 500,
+      })
       r.start()
 
       let now = Date.now()

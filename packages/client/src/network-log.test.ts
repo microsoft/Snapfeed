@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createNetworkLog, type NetworkLog, type NetworkLogEntry } from './network-log.js'
+import { createNetworkLog, type NetworkLog } from './network-log.js'
 
 function mockFetchOk(status = 200) {
   return vi
@@ -124,7 +124,9 @@ describe('createNetworkLog', () => {
   })
 
   it('excludes URLs matching excludePatterns', async () => {
-    const filtered = createNetworkLog({ excludePatterns: ['/telemetry', '/health'] })
+    const filtered = createNetworkLog({
+      excludePatterns: ['/telemetry', '/health'],
+    })
     const raw = mockFetchOk()
     const wrapped = filtered.wrapFetch(raw)
 
@@ -175,7 +177,7 @@ describe('createNetworkLog', () => {
     const raw = mockFetchOk()
     const wrapped = log.wrapFetch(raw)
 
-    const longUrl = 'https://api.example.com/' + 'x'.repeat(300)
+    const longUrl = `https://api.example.com/${'x'.repeat(300)}`
     await wrapped(longUrl)
 
     const entry = log.getEntries()[0]!

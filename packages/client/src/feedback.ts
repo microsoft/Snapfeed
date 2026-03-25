@@ -31,6 +31,14 @@ let currentConfig: ResolvedConfig | null = null
 let overlayKeydownCleanup: (() => void) | null = null
 const OVERLAY_MARGIN = 12
 const OVERLAY_GAP = 12
+const FORM_STATE_SELECTOR =
+  'input:not([type="hidden"]):not([type="password"]), select, textarea, [role="combobox"], [role="slider"]'
+const RESERVED_ENRICHMENT_KEYS = new Set([
+  'componentName',
+  'fileName',
+  'lineNumber',
+  'columnNumber',
+])
 
 export function dismissFeedbackDialog(): void {
   overlayKeydownCleanup?.()
@@ -57,7 +65,23 @@ async function loadHtml2Canvas(): Promise<typeof html2canvasFn> {
 
 // ── Context gathering ────────────────────────────────────────────────
 
-export function gatherContext(el: Element): Record<string, unknown> {
+function applyEnrichment(ctx: Record<string, unknown>, el: Element): void {
+  const enrichment = enrichElement(el)
+  if (!enrichment) return
+
+  if (enrichment.componentName) ctx.component = enrichment.componentName
+  if (enrichment.fileName) ctx.source_file = enrichment.fileName
+  if (enrichment.lineNumber) ctx.source_line = enrichment.lineNumber
+  if (enrichment.columnNumber) ctx.source_column = enrichment.columnNumber
+
+  for (const key in enrichment) {
+    if (!Object.hasOwn(enrichment, key)) continue
+    if (RESERVED_ENRICHMENT_KEYS.has(key)) continue
+    ctx[`plugin_${key}`] = enrichment[key]
+  }
+}
+
+function gatherBaseContext(el: Element): Record<string, unknown> {
   const ctx: Record<string, unknown> = {
     tag: el.tagName.toLowerCase(),
     path: getPath(el),
@@ -65,25 +89,13 @@ export function gatherContext(el: Element): Record<string, unknown> {
     label: getLabel(el),
   }
 
-  // Plugin enrichment (React component names, file paths, etc.)
-  const enrichment = enrichElement(el)
-  if (enrichment) {
-    if (enrichment.componentName) ctx.component = enrichment.componentName
-    if (enrichment.fileName) ctx.source_file = enrichment.fileName
-    if (enrichment.lineNumber) ctx.source_line = enrichment.lineNumber
-    if (enrichment.columnNumber) ctx.source_column = enrichment.columnNumber
-    // Spread any extra plugin data
-    for (const [key, value] of Object.entries(enrichment)) {
-      if (!['componentName', 'fileName', 'lineNumber', 'columnNumber'].includes(key)) {
-        ctx[`plugin_${key}`] = value
-      }
-    }
-  }
+  applyEnrichment(ctx, el)
 
   // Walk up to find data attributes
   let cur: Element | null = el
   while (cur && cur !== document.body) {
-    for (const attr of Array.from(cur.attributes)) {
+    for (let index = 0; index < cur.attributes.length; index++) {
+      const attr = cur.attributes[index]
       if (attr.name.startsWith('data-') && !ctx[attr.name]) {
         ctx[attr.name] = attr.value
       }
@@ -102,13 +114,19 @@ export function gatherContext(el: Element): Record<string, unknown> {
     if (title) ctx.dialog_title = (title as HTMLElement).innerText?.trim().substring(0, 100)
   }
 
-  // Capture visible form/filter state (inputs, selects, checkboxes, sliders)
+  ctx.url = window.location.pathname + window.location.search
+
+  return ctx
+}
+
+function gatherFormState(): Record<string, string> | null {
   const formState: Record<string, string> = {}
+  let hasFormState = false
+
+  // Capture visible form/filter state (inputs, selects, checkboxes, sliders)
   const inputs = document.querySelectorAll<
     HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-  >(
-    'input:not([type="hidden"]):not([type="password"]), select, textarea, [role="combobox"], [role="slider"]',
-  )
+  >(FORM_STATE_SELECTOR)
   for (const inp of inputs) {
     // Skip invisible elements
     if (!inp.offsetParent && inp.tagName !== 'INPUT') continue
@@ -127,11 +145,19 @@ export function gatherContext(el: Element): Record<string, unknown> {
     } else {
       value = inp.value || ''
     }
-    if (value) formState[label.substring(0, 40)] = value.substring(0, 100)
-  }
-  if (Object.keys(formState).length > 0) ctx.form_state = formState
+    if (!value) continue
 
-  ctx.url = window.location.pathname + window.location.search
+    formState[label.substring(0, 40)] = value.substring(0, 100)
+    hasFormState = true
+  }
+
+  return hasFormState ? formState : null
+}
+
+export function gatherContext(el: Element): Record<string, unknown> {
+  const ctx = gatherBaseContext(el)
+  const formState = gatherFormState()
+  if (formState) ctx.form_state = formState
 
   return ctx
 }
@@ -312,7 +338,7 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
 
   if (!currentConfig) return
 
-  const context = gatherContext(el)
+  const baseContext = gatherBaseContext(el)
   const theme = getSnapfeedTheme()
   const feedbackConfig = currentConfig.feedback
   const allowScreenshotToggle = feedbackConfig.allowScreenshotToggle
@@ -329,15 +355,17 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
   const crumbs: string[] = []
   const page = window.location.pathname.split('/').filter(Boolean)
   crumbs.push(...page)
-  if (context['data-feedback-context']) crumbs.push(context['data-feedback-context'] as string)
-  if (context.dialog_open) crumbs.push('dialog')
-  if (context['data-index'] != null) crumbs.push(`burst:${context['data-index']}`)
-  if (context.img_src) {
-    const fname = (context.img_src as string).split('/').pop()?.split('?')[0]
+  if (baseContext['data-feedback-context']) {
+    crumbs.push(baseContext['data-feedback-context'] as string)
+  }
+  if (baseContext.dialog_open) crumbs.push('dialog')
+  if (baseContext['data-index'] != null) crumbs.push(`burst:${baseContext['data-index']}`)
+  if (baseContext.img_src) {
+    const fname = (baseContext.img_src as string).split('/').pop()?.split('?')[0]
     if (fname) crumbs.push(fname)
   }
   // Include component name from plugin enrichment
-  if (context.component) crumbs.push(`<${context.component as string}>`)
+  if (baseContext.component) crumbs.push(`<${baseContext.component as string}>`)
   const breadcrumb = crumbs.join(' › ') || 'page'
 
   let selectedCategory: FeedbackCategory = 'bug'
@@ -349,6 +377,17 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
   let detailsExpanded = false
   let payloadPreviewExpanded = false
   let destroyed = false
+  let fullContext: Record<string, unknown> | null = null
+
+  const getFullContext = (): Record<string, unknown> => {
+    if (fullContext) return fullContext
+
+    const nextContext = { ...baseContext }
+    const formState = gatherFormState()
+    if (formState) nextContext.form_state = formState
+    fullContext = nextContext
+    return nextContext
+  }
 
   feedbackOverlay = document.createElement('div')
   feedbackOverlay.dataset.snapfeedOverlay = 'feedback-dialog'
@@ -378,7 +417,11 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
     feedbackOverlay.addEventListener(evt, (e) => e.stopPropagation())
   }
 
-  const targetLabel = ((context.label as string) || (context.tag as string) || '').substring(0, 60)
+  const targetLabel = (
+    (baseContext.label as string) ||
+    (baseContext.tag as string) ||
+    ''
+  ).substring(0, 60)
 
   // Build category chips HTML
   const chipsHtml = FEEDBACK_CATEGORIES.map(
@@ -463,6 +506,9 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
   const annotateButton = getRequiredElement<HTMLButtonElement>(overlay, '#__sf_annotate')
   const screenshotCheckbox = overlay.querySelector<HTMLInputElement>('#__sf_include_screenshot')
   const contextCheckbox = overlay.querySelector<HTMLInputElement>('#__sf_include_context')
+  const chipButtons = Array.from(
+    chipsContainer.querySelectorAll<HTMLButtonElement>('button[data-cat]'),
+  )
   let positionRaf = 0
 
   const toneStyles: Record<StatusTone, { background: string; color: string }> = {
@@ -513,7 +559,7 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
   const getSanitizedDetail = (): Record<string, unknown> => {
     const detail = getBaseDetail()
     if (includeContext) {
-      Object.assign(detail, context)
+      Object.assign(detail, getFullContext())
       const consoleErrors = getConsoleErrors()
       if (consoleErrors.length > 0) detail.console_errors = consoleErrors
 
@@ -571,7 +617,7 @@ export function showFeedbackDialog(el: Element, x: number, y: number): void {
     const hasText = textarea.value.trim().length > 0
 
     textarea.disabled = isSubmitting || completion !== null
-    chipsContainer.querySelectorAll<HTMLButtonElement>('button[data-cat]').forEach((button) => {
+    chipButtons.forEach((button) => {
       const isActive = button.dataset.cat === selectedCategory
       button.disabled = isSubmitting || completion !== null
       button.style.border = `1px solid ${isActive ? theme.accent : theme.panelBorder}`

@@ -30,14 +30,27 @@ export { consoleAdapter, webhookAdapter } from './adapters.js'
 export { getConsoleErrors } from './console-capture.js'
 export { gatherContext } from './feedback.js'
 export { describeElement, getLabel, getPath, getText } from './helpers.js'
-export type { NetworkLog, NetworkLogConfig, NetworkLogEntry } from './network-log.js'
+export type {
+  NetworkLog,
+  NetworkLogConfig,
+  NetworkLogEntry,
+} from './network-log.js'
 export { createNetworkLog } from './network-log.js'
-export { enrichElement, getPluginNames, registerPlugin, unregisterPlugin } from './plugins.js'
+export {
+  enrichElement,
+  getPluginNames,
+  registerPlugin,
+  unregisterPlugin,
+} from './plugins.js'
 export { flush, getSessionId, push } from './queue.js'
 export type { RageClickInfo, RageDetectConfig } from './rage-detect.js'
 export { createRageDetector } from './rage-detect.js'
 export { sanitize, sanitizeDetail } from './sanitize.js'
-export type { ReplayEvent, SessionReplay, SessionReplayConfig } from './session-replay.js'
+export type {
+  ReplayEvent,
+  SessionReplay,
+  SessionReplayConfig,
+} from './session-replay.js'
 export { createSessionReplay } from './session-replay.js'
 // Re-export public API
 export type {
@@ -59,22 +72,37 @@ let cleanupFns: (() => void)[] = []
 
 // ── Event handlers ───────────────────────────────────────────────────
 
-function handleClick(e: MouseEvent): void {
-  if (e.ctrlKey || e.metaKey) return
-  const el = e.target as Element
-  if (!el) return
-  const label = getLabel(el)
+interface TrackedClickInfo {
+  el: Element
+  label: string
+  x: number
+  y: number
+}
 
-  const detail: Record<string, unknown> = {
-    tag: el.tagName.toLowerCase(),
-    role: el.getAttribute('role'),
-    path: getPath(el),
+function getTrackedClickInfo(e: MouseEvent): TrackedClickInfo | null {
+  if (e.ctrlKey || e.metaKey) return null
+  const el = e.target as Element | null
+  if (!el) return null
+
+  return {
+    el,
+    label: getLabel(el),
     x: Math.round(e.clientX),
     y: Math.round(e.clientY),
   }
+}
+
+function recordClick(info: TrackedClickInfo): void {
+  const detail: Record<string, unknown> = {
+    tag: info.el.tagName.toLowerCase(),
+    role: info.el.getAttribute('role'),
+    path: getPath(info.el),
+    x: info.x,
+    y: info.y,
+  }
 
   // Plugin enrichment
-  const pluginCtx = enrichElement(el)
+  const pluginCtx = enrichElement(info.el)
   if (pluginCtx) {
     if (pluginCtx.componentName) detail.component = pluginCtx.componentName
     if (pluginCtx.fileName) detail.source_file = pluginCtx.fileName
@@ -82,10 +110,10 @@ function handleClick(e: MouseEvent): void {
   }
 
   // Sanitize before sending
-  push('click', label, sanitizeDetail(detail))
+  push('click', info.label, sanitizeDetail(detail))
 
   console.log(
-    `%c🖱 click%c ${label}%c${pluginCtx?.componentName ? ` <${pluginCtx.componentName}>` : ''} @ (${Math.round(e.clientX)},${Math.round(e.clientY)})`,
+    `%c🖱 click%c ${info.label}%c${pluginCtx?.componentName ? ` <${pluginCtx.componentName}>` : ''} @ (${info.x},${info.y})`,
     'color: #58a6ff; font-weight: bold',
     'color: #c9d1d9',
     'color: #8b949e',
@@ -195,8 +223,37 @@ export function initSnapfeed(config: SnapfeedConfig = {}): () => void {
   }
 
   if (resolved.trackClicks) {
-    document.addEventListener('click', handleClick, { capture: true })
-    cleanupFns.push(() => document.removeEventListener('click', handleClick, { capture: true }))
+    const rageDetector = resolved.rageClick.enabled
+      ? createRageDetector({
+          threshold: resolved.rageClick.threshold,
+          windowMs: resolved.rageClick.windowMs,
+          onRageClick: (info) => {
+            push('rage_click', info.target, {
+              clickCount: info.clickCount,
+              durationMs: info.durationMs,
+              x: info.x,
+              y: info.y,
+            })
+            flush()
+          },
+        })
+      : null
+
+    const handleTrackedClick = (e: MouseEvent) => {
+      const info = getTrackedClickInfo(e)
+      if (!info) return
+
+      recordClick(info)
+      rageDetector?.recordClick(info.label, info.x, info.y)
+    }
+
+    document.addEventListener('click', handleTrackedClick, { capture: true })
+    cleanupFns.push(() => {
+      document.removeEventListener('click', handleTrackedClick, {
+        capture: true,
+      })
+      rageDetector?.destroy()
+    })
   }
 
   if (resolved.trackErrors) {
@@ -230,35 +287,6 @@ export function initSnapfeed(config: SnapfeedConfig = {}): () => void {
   if (resolved.trackApiErrors) {
     patchFetch(resolved.endpoint)
     cleanupFns.push(unpatchFetch)
-  }
-
-  // Rage click detection
-  if (resolved.rageClick.enabled && resolved.trackClicks) {
-    const rageDetector = createRageDetector({
-      threshold: resolved.rageClick.threshold,
-      windowMs: resolved.rageClick.windowMs,
-      onRageClick: (info) => {
-        push('rage_click', info.target, {
-          clickCount: info.clickCount,
-          durationMs: info.durationMs,
-          x: info.x,
-          y: info.y,
-        })
-        flush()
-      },
-    })
-    // Hook into click events — extract target label and coordinates
-    const rageClickHandler = (e: MouseEvent) => {
-      if (e.ctrlKey || e.metaKey) return
-      const el = e.target as Element
-      if (!el) return
-      rageDetector.recordClick(getLabel(el), Math.round(e.clientX), Math.round(e.clientY))
-    }
-    document.addEventListener('click', rageClickHandler, { capture: true })
-    cleanupFns.push(() => {
-      document.removeEventListener('click', rageClickHandler, { capture: true })
-      rageDetector.destroy()
-    })
   }
 
   // Network request log

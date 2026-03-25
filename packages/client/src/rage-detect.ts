@@ -53,32 +53,50 @@ export function createRageDetector(config: RageDetectConfig) {
     if (destroyed) return
 
     const now = Date.now()
+    const currentClick = { target, x, y, ts: now }
+    let nextLength = 0
+    let matchingCount = 1
+    let firstMatch = currentClick
 
-    // Remove entries older than the window
-    buffer = buffer.filter((e) => now - e.ts <= windowMs)
+    for (let index = 0; index < buffer.length; index++) {
+      const entry = buffer[index]
+      if (now - entry.ts > windowMs) continue
 
-    buffer.push({ target, x, y, ts: now })
+      buffer[nextLength] = entry
+      nextLength++
+
+      if (entry.target !== target) continue
+
+      matchingCount++
+      if (entry.ts < firstMatch.ts) firstMatch = entry
+    }
+
+    buffer.length = nextLength
+    buffer.push(currentClick)
 
     // Keep buffer bounded
     if (buffer.length > MAX_BUFFER) {
-      buffer = buffer.slice(buffer.length - MAX_BUFFER)
+      buffer.splice(0, buffer.length - MAX_BUFFER)
     }
 
-    // Count matching clicks within the window
-    const matching = buffer.filter((e) => e.target === target)
-    if (matching.length >= threshold) {
-      const first = matching[0]
-      const last = matching[matching.length - 1]
+    if (matchingCount >= threshold) {
       config.onRageClick({
         target,
-        clickCount: matching.length,
-        durationMs: last.ts - first.ts,
+        clickCount: matchingCount,
+        durationMs: currentClick.ts - firstMatch.ts,
         x,
         y,
       })
 
       // Clear matched entries so we don't fire again for the same burst
-      buffer = buffer.filter((e) => e.target !== target)
+      let retainedLength = 0
+      for (let index = 0; index < buffer.length; index++) {
+        const entry = buffer[index]
+        if (entry.target === target) continue
+        buffer[retainedLength] = entry
+        retainedLength++
+      }
+      buffer.length = retainedLength
     }
   }
 
