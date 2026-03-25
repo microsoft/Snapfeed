@@ -235,7 +235,7 @@ initSnapfeed({
   trackApiErrors: true, // monkey-patch fetch() for non-2xx (default)
   captureConsoleErrors: true, // buffer recent console.error output (default)
 
-  // Feedback dialog (Cmd+Click)
+  // Feedback flow (Cmd+Click)
   feedback: {
     enabled: true,
     screenshotMaxWidth: 1200,
@@ -265,6 +265,38 @@ initSnapfeed({
 Returns a teardown function: `const teardown = initSnapfeed(); teardown()`
 
 Built-in presets are also available through the client package exports: `modern`, `windows90s`, `terminal`, `githubLight`, `dracula`, and `nord`. If you pass a custom `theme` object, Snapfeed merges it over the `modern` preset.
+
+### Bring your own UI
+
+If you want Snapfeed's capture, queueing, adapters, and event contract without the built-in dialog, provide `feedback.onTrigger`.
+
+```ts
+import { initSnapfeed } from "@microsoft/snapfeed";
+
+initSnapfeed({
+  feedback: {
+    enabled: false,
+    onTrigger(controller, trigger) {
+      openYourFeedbackModal({
+        anchor: { x: trigger.x, y: trigger.y },
+        initial: controller.getSnapshot(),
+        onTextChange: (text) => controller.setText(text),
+        onIncludeScreenshotChange: (include) =>
+          controller.setIncludeScreenshot(include),
+        onIncludeContextChange: (include) =>
+          controller.setIncludeContext(include),
+        onAnnotate: () => controller.annotate(),
+        onSubmit: () => controller.submit(),
+        onClose: () => controller.dispose(),
+      });
+    },
+  },
+});
+```
+
+You can also wire the trigger manually by using `getFeedbackTrigger(event)` and `createFeedbackController(trigger)` from the client package.
+
+Custom UI still submits the same `feedback` event to the same telemetry endpoint. The payload shape and backend contract stay unchanged.
 
 ---
 
