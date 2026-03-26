@@ -22,6 +22,6 @@
     "test:react-e2e": "npm run -w examples/react e2e"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.8"
+    "@biomejs/biome": "^2.4.9"
   }
 }
