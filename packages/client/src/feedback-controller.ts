@@ -76,13 +76,33 @@ function applyEnrichment(ctx: Record<string, unknown>, el: Element): void {
   }
 }
 
-function gatherBaseContext(el: Element): Record<string, unknown> {
+function gatherSummaryContext(el: Element): Record<string, unknown> {
   const ctx: Record<string, unknown> = {
     tag: el.tagName.toLowerCase(),
     path: getPath(el),
     text: getText(el),
     label: getLabel(el),
   }
+
+  const feedbackContext = el.getAttribute('data-feedback-context')
+  if (feedbackContext) {
+    ctx['data-feedback-context'] = feedbackContext
+  }
+
+  const dataIndex = el.getAttribute('data-index')
+  if (dataIndex) {
+    ctx['data-index'] = dataIndex
+  }
+
+  if (el.tagName === 'IMG') {
+    ctx.img_src = (el as HTMLImageElement).src.replace(window.location.origin, '')
+  }
+
+  return ctx
+}
+
+function gatherBaseContext(el: Element): Record<string, unknown> {
+  const ctx = gatherSummaryContext(el)
 
   applyEnrichment(ctx, el)
 
@@ -275,7 +295,7 @@ export function createHeadlessFeedbackController(
   config: ResolvedConfig,
   trigger: FeedbackTrigger,
 ): FeedbackController {
-  const baseContext = gatherBaseContext(trigger.element)
+  const summaryContext = gatherSummaryContext(trigger.element)
   const listeners = new Set<(snapshot: FeedbackControllerSnapshot) => void>()
   const state: ControllerState = {
     text: '',
@@ -289,13 +309,15 @@ export function createHeadlessFeedbackController(
     disposed: false,
   }
 
-  const breadcrumb = buildBreadcrumb(baseContext)
+  let pendingScreenshot: Promise<string | null> | null = null
+  let screenshotStartTimer: ReturnType<typeof setTimeout> | null = null
+
+  const breadcrumb = buildBreadcrumb(summaryContext)
   const targetLabel = (
-    (baseContext.label as string) ||
-    (baseContext.tag as string) ||
+    (summaryContext.label as string) ||
+    (summaryContext.tag as string) ||
     ''
   ).substring(0, 60)
-  const pendingScreenshot = captureScreenshot(config, trigger.x, trigger.y)
 
   const getSnapshot = (): FeedbackControllerSnapshot => ({
     x: trigger.x,
@@ -319,10 +341,52 @@ export function createHeadlessFeedbackController(
     }
   }
 
+  const applyScreenshotResult = (screenshot: string | null): string | null => {
+    if (state.disposed) return screenshot
+
+    state.screenshotData = screenshot
+    if (!screenshot) {
+      state.screenshotState = 'unavailable'
+      state.includeScreenshot = false
+    } else {
+      state.screenshotState = 'ready'
+    }
+
+    notify()
+    return screenshot
+  }
+
+  const clearScheduledScreenshotStart = () => {
+    if (screenshotStartTimer) {
+      clearTimeout(screenshotStartTimer)
+      screenshotStartTimer = null
+    }
+  }
+
+  const startScreenshotCapture = (): Promise<string | null> => {
+    if (state.disposed) return Promise.resolve(state.screenshotData)
+    if (pendingScreenshot) return pendingScreenshot
+
+    clearScheduledScreenshotStart()
+    pendingScreenshot = captureScreenshot(config, trigger.x, trigger.y).then(applyScreenshotResult)
+    return pendingScreenshot
+  }
+
+  const scheduleScreenshotCapture = () => {
+    if (!state.includeScreenshot || state.disposed || pendingScreenshot || screenshotStartTimer) {
+      return
+    }
+
+    screenshotStartTimer = setTimeout(() => {
+      screenshotStartTimer = null
+      void startScreenshotCapture()
+    }, 0)
+  }
+
   const getFullContext = (): Record<string, unknown> => {
     if (state.fullContext) return state.fullContext
 
-    const nextContext = { ...baseContext }
+    const nextContext = gatherBaseContext(trigger.element)
     const formState = gatherFormState()
     if (formState) nextContext.form_state = formState
     state.fullContext = nextContext
@@ -356,34 +420,13 @@ export function createHeadlessFeedbackController(
   }
 
   const ensureScreenshot = async (): Promise<string | null> => {
-    const screenshot = state.screenshotData ?? (await pendingScreenshot)
-    if (state.disposed) return screenshot
+    if (state.screenshotState === 'ready') return state.screenshotData
+    if (state.screenshotState === 'unavailable') return null
 
-    state.screenshotData = screenshot
-    if (!screenshot) {
-      state.screenshotState = 'unavailable'
-      state.includeScreenshot = false
-    } else {
-      state.screenshotState = 'ready'
-    }
-
-    notify()
-    return screenshot
+    return startScreenshotCapture()
   }
 
-  void pendingScreenshot.then((screenshot) => {
-    if (state.disposed) return
-
-    state.screenshotData = screenshot
-    if (!screenshot) {
-      state.screenshotState = 'unavailable'
-      state.includeScreenshot = false
-    } else {
-      state.screenshotState = 'ready'
-    }
-
-    notify()
-  })
+  scheduleScreenshotCapture()
 
   return {
     getSnapshot,
@@ -411,6 +454,11 @@ export function createHeadlessFeedbackController(
       if (state.submitState.kind !== 'idle') return
       if (include && state.screenshotState === 'unavailable') return
       state.includeScreenshot = include
+      if (include) {
+        scheduleScreenshotCapture()
+      } else {
+        clearScheduledScreenshotStart()
+      }
       notify()
     },
 
@@ -421,6 +469,10 @@ export function createHeadlessFeedbackController(
     },
 
     getPayloadPreview() {
+      if (state.includeScreenshot && state.screenshotState === 'pending') {
+        scheduleScreenshotCapture()
+      }
+
       return {
         event_type: 'feedback',
         page: window.location.pathname,
@@ -498,7 +550,9 @@ export function createHeadlessFeedbackController(
         } else if (entry.value.result.ok) {
           const { deliveryId: id, deliveryUrl: url } = entry.value.result
           if (url) {
-            adapterSuccesses.push(`<a href="${url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${entry.value.name} #${id ?? ''}</a>`)
+            adapterSuccesses.push(
+              `<a href="${url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${entry.value.name} #${id ?? ''}</a>`,
+            )
             hasDeliveryUrl = true
           } else {
             adapterSuccesses.push(id ? `${entry.value.name} #${id}` : entry.value.name)
@@ -554,6 +608,7 @@ export function createHeadlessFeedbackController(
     },
 
     dispose() {
+      clearScheduledScreenshotStart()
       state.disposed = true
       listeners.clear()
     },

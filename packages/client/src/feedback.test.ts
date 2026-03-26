@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import html2canvas from 'html2canvas'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./annotation.js', () => ({
@@ -35,6 +36,7 @@ import {
   initFeedback,
   showFeedbackDialog,
 } from './feedback.js'
+import { enrichElement } from './plugins.js'
 import * as queue from './queue.js'
 import { resolveConfig } from './types.js'
 
@@ -62,6 +64,7 @@ function createCanvasContext(): CanvasRenderingContext2D {
 
 async function flushUi(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
   await Promise.resolve()
   await Promise.resolve()
 }
@@ -94,6 +97,15 @@ function createTarget(): HTMLElement {
 describe('feedback overlay', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.mocked(enrichElement).mockReset()
+    vi.mocked(enrichElement).mockReturnValue(null)
+    vi.mocked(html2canvas).mockReset()
+    vi.mocked(html2canvas).mockImplementation(async () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 900
+      canvas.height = 600
+      return canvas
+    })
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(createCanvasContext())
     vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(
       'data:image/jpeg;base64,ZmFrZS1pbWFnZQ==',
@@ -126,12 +138,16 @@ describe('feedback overlay', () => {
     const textarea = document.getElementById('__sf_text') as HTMLTextAreaElement
     const sendButton = document.getElementById('__sf_send') as HTMLButtonElement
     const annotateButton = document.getElementById('__sf_annotate') as HTMLButtonElement
+    const screenshotIndicator = document.getElementById(
+      '__sf_screenshot_indicator',
+    ) as HTMLDivElement
     const status = document.getElementById('__sf_status') as HTMLDivElement
     const detailsToggle = document.getElementById('__sf_details_toggle') as HTMLButtonElement
     const detailsPanel = document.getElementById('__sf_controls') as HTMLDivElement
 
     expect(document.activeElement).toBe(textarea)
     expect(sendButton.disabled).toBe(true)
+    expect(screenshotIndicator.textContent).toMatch(/screenshot ready/i)
     expect(status.textContent).toMatch(/screenshot attached/i)
     expect(annotateButton.textContent).toMatch(/annotate/i)
     expect(detailsToggle.textContent).toMatch(/details/i)
@@ -142,6 +158,45 @@ describe('feedback overlay', () => {
     textarea.dispatchEvent(new Event('input', { bubbles: true }))
 
     expect(sendButton.disabled).toBe(false)
+  })
+
+  it('keeps the dialog interactive while screenshot capture is still pending', async () => {
+    let resolveCapture: (canvas: HTMLCanvasElement) => void = () => {}
+    vi.mocked(html2canvas).mockImplementationOnce(
+      () =>
+        new Promise<HTMLCanvasElement>((resolve) => {
+          resolveCapture = resolve
+        }),
+    )
+
+    const target = createTarget()
+    showFeedbackDialog(target, 120, 80)
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    await Promise.resolve()
+
+    const textarea = document.getElementById('__sf_text') as HTMLTextAreaElement
+    const screenshotIndicator = document.getElementById(
+      '__sf_screenshot_indicator',
+    ) as HTMLDivElement
+    const status = document.getElementById('__sf_status') as HTMLDivElement
+
+    expect(textarea).not.toBeNull()
+    expect(screenshotIndicator.textContent).toMatch(/screenshot loading/i)
+    expect(screenshotIndicator.getAttribute('aria-busy')).toBe('true')
+    expect(status.textContent).toMatch(/preparing screenshot in the background/i)
+    expect(vi.mocked(html2canvas)).toHaveBeenCalledOnce()
+
+    const canvas = document.createElement('canvas')
+    canvas.width = 900
+    canvas.height = 600
+    resolveCapture(canvas)
+
+    await flushUi()
+
+    expect(screenshotIndicator.textContent).toMatch(/screenshot ready/i)
+    expect(screenshotIndicator.getAttribute('aria-busy')).toBe('false')
+    expect(status.textContent).toMatch(/screenshot attached/i)
   })
 
   it('honors screenshot and context toggles in the queued payload', async () => {
@@ -156,6 +211,9 @@ describe('feedback overlay', () => {
     const detailsToggle = document.getElementById('__sf_details_toggle') as HTMLButtonElement
     const screenshotToggle = document.getElementById('__sf_include_screenshot') as HTMLInputElement
     const contextToggle = document.getElementById('__sf_include_context') as HTMLInputElement
+    const screenshotIndicator = document.getElementById(
+      '__sf_screenshot_indicator',
+    ) as HTMLDivElement
     const sendButton = document.getElementById('__sf_send') as HTMLButtonElement
 
     detailsToggle.click()
@@ -164,6 +222,9 @@ describe('feedback overlay', () => {
     screenshotToggle.dispatchEvent(new Event('change', { bubbles: true }))
     contextToggle.checked = false
     contextToggle.dispatchEvent(new Event('change', { bubbles: true }))
+
+    expect(screenshotIndicator.textContent).toMatch(/screenshot off/i)
+    expect(screenshotIndicator.getAttribute('aria-busy')).toBe('false')
 
     textarea.value = 'Skip attachments for this quick note.'
     textarea.dispatchEvent(new Event('input', { bubbles: true }))
@@ -236,6 +297,34 @@ describe('feedback overlay', () => {
 
     expect(payloadPreview.textContent).toMatch(/"page_context_included": false/)
     expect(payloadPreview.textContent).not.toMatch(/"path"/)
+  })
+
+  it('defers plugin enrichment until the payload preview requests full context', async () => {
+    vi.mocked(enrichElement).mockReturnValue({
+      componentName: 'FeedbackReviewCard',
+      fileName: 'src/App.tsx',
+      lineNumber: 192,
+      columnNumber: 7,
+    })
+
+    const target = createTarget()
+
+    showFeedbackDialog(target, 120, 80)
+    await flushUi()
+
+    expect(enrichElement).not.toHaveBeenCalled()
+
+    const detailsToggle = document.getElementById('__sf_details_toggle') as HTMLButtonElement
+    const payloadToggle = document.getElementById('__sf_payload_toggle') as HTMLButtonElement
+    const payloadPreview = document.getElementById('__sf_payload_preview') as HTMLPreElement
+
+    detailsToggle.click()
+    payloadToggle.click()
+
+    expect(enrichElement).toHaveBeenCalledWith(target)
+    expect(payloadPreview.textContent).toMatch(/"component": "FeedbackReviewCard"/)
+    expect(payloadPreview.textContent).toMatch(/"source_file": "src\/App.tsx"/)
+    expect(payloadPreview.textContent).toMatch(/"source_line": 192/)
   })
 
   it('defers the global form-state scan until context payload is requested', async () => {
@@ -347,6 +436,15 @@ describe('feedback overlay', () => {
 describe('feedback controller', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.mocked(enrichElement).mockReset()
+    vi.mocked(enrichElement).mockReturnValue(null)
+    vi.mocked(html2canvas).mockReset()
+    vi.mocked(html2canvas).mockImplementation(async () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 900
+      canvas.height = 600
+      return canvas
+    })
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(createCanvasContext())
     vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(
       'data:image/jpeg;base64,ZmFrZS1pbWFnZQ==',

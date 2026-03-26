@@ -240,6 +240,10 @@ export function showFeedbackDialog(
              border-radius:${theme.panelRadius}; padding:8px; font-size:14px; resize:vertical; font-family:inherit;
              outline:none; min-height:104px; line-height:1.45;"
     ></textarea>
+    <div id="__sf_screenshot_indicator" role="status" aria-live="polite" aria-busy="false" style="display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 10px; border:1px solid ${theme.panelBorder}; border-radius:${theme.panelRadius}; color:${theme.mutedText}; font-size:11px; line-height:1.4;">
+      <span id="__sf_screenshot_indicator_icon" style="display:inline-flex; min-width:18px; justify-content:center; font-weight:600; letter-spacing:0.04em;">--</span>
+      <span id="__sf_screenshot_indicator_text">Screenshot off</span>
+    </div>
     <div id="__sf_status" role="status" aria-live="polite" style="font-size:12px; color:${theme.mutedText}; line-height:1.45; margin-top:10px;"></div>
     <div id="__sf_details_shell" style="display:${screenshotControlVisible || contextControlVisible ? 'flex' : 'none'}; flex-direction:column; gap:8px; margin-top:10px; margin-bottom:10px;">
       <button type="button" id="__sf_details_toggle" aria-expanded="false" style="display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:34px; padding:7px 10px; border:1px solid ${theme.panelBorder}; border-radius:${theme.panelRadius}; background:transparent; color:${theme.panelText}; cursor:pointer; font-size:12px; font-family:inherit; text-align:left;">
@@ -290,6 +294,18 @@ export function showFeedbackDialog(
   const payloadLabel = overlay.querySelector<HTMLSpanElement>('#__sf_payload_label')
   const payloadChevron = overlay.querySelector<HTMLSpanElement>('#__sf_payload_chevron')
   const payloadPreview = overlay.querySelector<HTMLPreElement>('#__sf_payload_preview')
+  const screenshotIndicator = getRequiredElement<HTMLDivElement>(
+    overlay,
+    '#__sf_screenshot_indicator',
+  )
+  const screenshotIndicatorIcon = getRequiredElement<HTMLSpanElement>(
+    overlay,
+    '#__sf_screenshot_indicator_icon',
+  )
+  const screenshotIndicatorText = getRequiredElement<HTMLSpanElement>(
+    overlay,
+    '#__sf_screenshot_indicator_text',
+  )
   const sendButton = getRequiredElement<HTMLButtonElement>(overlay, '#__sf_send')
   const cancelButton = getRequiredElement<HTMLButtonElement>(overlay, '#__sf_cancel')
   const closeButton = getRequiredElement<HTMLButtonElement>(overlay, '#__sf_close')
@@ -320,6 +336,46 @@ export function showFeedbackDialog(
       color: theme.panelText,
     },
   }
+
+  const screenshotIndicatorStyles = {
+    pending: {
+      background: theme.accentSoft,
+      borderColor: theme.accent,
+      color: theme.panelText,
+      icon: '...',
+      text: 'Screenshot loading',
+    },
+    ready: {
+      background: theme.accentSoft,
+      borderColor: theme.accent,
+      color: theme.panelText,
+      icon: 'OK',
+      text: 'Screenshot ready',
+    },
+    off: {
+      background: 'transparent',
+      borderColor: theme.panelBorder,
+      color: theme.mutedText,
+      icon: '--',
+      text: 'Screenshot off',
+    },
+    unavailable: {
+      background: 'rgba(248, 113, 113, 0.12)',
+      borderColor: 'rgba(248, 113, 113, 0.36)',
+      color: theme.panelText,
+      icon: '!!',
+      text: 'Screenshot unavailable',
+    },
+  } satisfies Record<
+    'pending' | 'ready' | 'off' | 'unavailable',
+    {
+      background: string
+      borderColor: string
+      color: string
+      icon: string
+      text: string
+    }
+  >
 
   const isActiveOverlay = () => feedbackOverlay === overlay && !destroyed
 
@@ -360,6 +416,26 @@ export function showFeedbackDialog(
 
     status.style.background = 'transparent'
     status.style.color = theme.mutedText
+  }
+
+  const updateScreenshotIndicator = () => {
+    const indicatorState = !snapshot.includeScreenshot
+      ? screenshotIndicatorStyles.off
+      : snapshot.screenshotState === 'pending'
+        ? screenshotIndicatorStyles.pending
+        : snapshot.screenshotState === 'ready'
+          ? screenshotIndicatorStyles.ready
+          : screenshotIndicatorStyles.unavailable
+
+    screenshotIndicator.style.background = indicatorState.background
+    screenshotIndicator.style.border = `1px solid ${indicatorState.borderColor}`
+    screenshotIndicator.style.color = indicatorState.color
+    screenshotIndicator.setAttribute(
+      'aria-busy',
+      snapshot.includeScreenshot && snapshot.screenshotState === 'pending' ? 'true' : 'false',
+    )
+    screenshotIndicatorIcon.textContent = indicatorState.icon
+    screenshotIndicatorText.textContent = indicatorState.text
   }
 
   const updateUi = () => {
@@ -412,6 +488,8 @@ export function showFeedbackDialog(
         payloadPreview.textContent = JSON.stringify(controller.getPayloadPreview(), null, 2)
       }
     }
+
+    updateScreenshotIndicator()
 
     setButtonEnabled(
       annotateButton,
