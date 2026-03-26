@@ -489,33 +489,63 @@ export function createHeadlessFeedbackController(
       )
       if (state.disposed) return state.submitState
 
-      const adapterFailures = adapterResults.flatMap((entry) => {
-        if (entry.status === 'rejected') return ['adapter']
-        return entry.value.result.ok ? [] : [entry.value.name]
-      })
+      const adapterSuccesses: string[] = []
+      const adapterFailures: string[] = []
+      let hasDeliveryUrl = false
+      for (const entry of adapterResults) {
+        if (entry.status === 'rejected') {
+          adapterFailures.push('adapter')
+        } else if (entry.value.result.ok) {
+          const { deliveryId: id, deliveryUrl: url } = entry.value.result
+          if (url) {
+            adapterSuccesses.push(`<a href="${url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${entry.value.name} #${id ?? ''}</a>`)
+            hasDeliveryUrl = true
+          } else {
+            adapterSuccesses.push(id ? `${entry.value.name} #${id}` : entry.value.name)
+          }
+        } else {
+          adapterFailures.push(entry.value.name)
+        }
+      }
 
-      if (!flushOk || adapterFailures.length > 0) {
+      const hasAdapterSuccess = adapterSuccesses.length > 0
+      const hasAdapterFailure = adapterFailures.length > 0
+
+      if (hasAdapterSuccess && !hasAdapterFailure) {
+        state.submitState = {
+          kind: 'complete',
+          tone: 'success',
+          message: `Feedback delivered via ${adapterSuccesses.join(', ')}.`,
+          html: hasDeliveryUrl,
+        }
+      } else if (hasAdapterSuccess && hasAdapterFailure) {
         state.submitState = {
           kind: 'complete',
           tone: 'warning',
-          message: [
-            flushOk
-              ? 'Feedback saved and sent from this page.'
-              : 'Feedback saved locally. Server delivery will retry automatically.',
-            adapterFailures.length > 0
-              ? `Adapter delivery failed: ${adapterFailures.join(', ')}.`
-              : '',
-          ]
-            .filter(Boolean)
-            .join(' '),
+          message: `Delivered via ${adapterSuccesses.join(', ')}. Failed: ${adapterFailures.join(', ')}.`,
+          html: hasDeliveryUrl,
         }
-      } else {
+      } else if (!hasAdapterSuccess && config.adapters.length > 0) {
+        state.submitState = {
+          kind: 'complete',
+          tone: 'warning',
+          message: flushOk
+            ? 'Feedback saved to server. Adapter delivery failed.'
+            : 'Feedback saved locally. Delivery will retry automatically.',
+        }
+      } else if (flushOk) {
         state.submitState = {
           kind: 'complete',
           tone: 'success',
           message: state.includeScreenshot
-            ? 'Feedback sent with the current screenshot attached.'
-            : 'Feedback sent without a screenshot.',
+            ? 'Feedback sent with screenshot attached.'
+            : 'Feedback sent.',
+        }
+      } else {
+        state.submitState = {
+          kind: 'complete',
+          tone: 'warning',
+          message: 'Feedback saved locally. Server delivery will retry automatically.',
         }
       }
 

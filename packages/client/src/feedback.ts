@@ -344,8 +344,12 @@ export function showFeedbackDialog(
     return parts.length > 0 ? `Details · ${parts.join(' · ')}` : 'Details'
   }
 
-  const updateStatus = (message: string, tone?: FeedbackStatusTone) => {
-    status.textContent = message
+  const updateStatus = (message: string, tone?: FeedbackStatusTone, html = false) => {
+    if (html) {
+      status.innerHTML = message
+    } else {
+      status.textContent = message
+    }
     status.style.padding = message ? '8px 10px' : '0'
     status.style.borderRadius = theme.panelRadius
     if (tone) {
@@ -426,7 +430,7 @@ export function showFeedbackDialog(
       sendButton.textContent = 'Close'
       setButtonEnabled(sendButton, true)
       cancelButton.style.display = 'none'
-      updateStatus(completion.message, completion.tone)
+      updateStatus(completion.message, completion.tone, completion.html)
       schedulePosition()
       return
     }
