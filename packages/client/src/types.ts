@@ -35,7 +35,7 @@ export type FeedbackScreenshotState = 'pending' | 'ready' | 'unavailable'
 export type FeedbackSubmitState =
   | { kind: 'idle' }
   | { kind: 'submitting' }
-  | { kind: 'complete'; tone: FeedbackStatusTone; message: string }
+  | { kind: 'complete'; tone: FeedbackStatusTone; message: string; html?: boolean }
 
 export interface FeedbackTrigger {
   element: Element
@@ -103,6 +103,8 @@ export interface AdapterResult {
   error?: string
   /** Adapter-specific delivery ID (e.g. issue number, message ID). */
   deliveryId?: string
+  /** URL to view the delivered feedback (e.g. GitHub issue link). */
+  deliveryUrl?: string
 }
 
 /**
@@ -111,6 +113,8 @@ export interface AdapterResult {
  */
 export interface FeedbackAdapter {
   name: string
+  /** Human-friendly label shown in the UI (e.g. "GitHub"). Defaults to name. */
+  displayName?: string
   send(event: TelemetryEvent): Promise<AdapterResult>
 }
 
