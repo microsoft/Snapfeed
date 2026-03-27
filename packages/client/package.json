@@ -1,6 +1,6 @@
 {
   "name": "@microsoft/snapfeed",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "UI feedback & telemetry for agentic workflows — capture clicks, errors, navigation, and visual feedback with framework-agnostic plugin support",
   "type": "module",
   "engines": {

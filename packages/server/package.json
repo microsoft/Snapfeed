@@ -1,6 +1,6 @@
 {
   "name": "@microsoft/snapfeed-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reference backend for @microsoft/snapfeed — Hono + SQLite telemetry server",
   "type": "module",
   "engines": {
