@@ -245,6 +245,34 @@ describe('feedback overlay', () => {
     expect(pushSpy.mock.calls[0]?.[2]).not.toHaveProperty('url')
   })
 
+  it('shows a context-first status when screenshot support is disabled in config', async () => {
+    initFeedback(
+      resolveConfig({
+        endpoint: '/api/test-feedback',
+        feedback: {
+          enabled: true,
+          annotations: false,
+          allowScreenshotToggle: false,
+          allowContextToggle: true,
+          defaultIncludeScreenshot: false,
+          defaultIncludeContext: true,
+        },
+      }),
+    )
+
+    const target = createTarget()
+
+    showFeedbackDialog(target, 120, 80)
+    await flushUi()
+
+    const status = document.getElementById('__sf_status') as HTMLDivElement
+    const detailsToggle = document.getElementById('__sf_details_toggle') as HTMLButtonElement
+
+    expect(status.textContent).toBe('Page context will be attached to this report.')
+    expect(detailsToggle.textContent).toContain('Context on')
+    expect(detailsToggle.textContent).not.toContain('Screenshot')
+  })
+
   it('expands and collapses the details disclosure', async () => {
     const target = createTarget()
 
