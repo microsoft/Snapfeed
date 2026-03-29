@@ -532,7 +532,13 @@ export function showFeedbackDialog(
     }
 
     if (!snapshot.includeScreenshot) {
-      updateStatus('Screenshot will be skipped for this report.')
+      updateStatus(
+        screenshotControlVisible
+          ? 'Screenshot will be skipped for this report.'
+          : snapshot.includeContext
+            ? 'Page context will be attached to this report.'
+            : '',
+      )
       schedulePosition()
       return
     }
