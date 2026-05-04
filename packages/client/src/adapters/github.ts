@@ -13,33 +13,21 @@ export interface GitHubAdapterOptions {
   repo: string
   /** Labels to apply to created issues. Default: ['feedback'] */
   labels?: string[]
-  /** Map feedback categories to additional labels. */
-  categoryLabels?: Record<string, string>
 }
 
 export function githubAdapter(options: GitHubAdapterOptions): FeedbackAdapter {
   const { token, owner, repo } = options
-  const baseLabels = options.labels ?? ['feedback']
+  const labels = options.labels ?? ['feedback']
 
   return {
     name: 'github',
     async send(event: TelemetryEvent): Promise<AdapterResult> {
       try {
         const detail = event.detail ?? {}
-        const category = (detail.category as string) || 'other'
         const message = (detail.message as string) || event.target || 'No message'
         const page = event.page || 'unknown'
 
-        const labels = [...baseLabels]
-        if (options.categoryLabels?.[category]) {
-          labels.push(options.categoryLabels[category])
-        }
-
-        const lines: string[] = [
-          `**Category:** ${category}`,
-          `**Page:** \`${page}\``,
-          `**Timestamp:** ${event.ts}`,
-        ]
+        const lines: string[] = [`**Page:** \`${page}\``, `**Timestamp:** ${event.ts}`]
 
         if (detail.user) {
           const user = detail.user as Record<string, unknown>

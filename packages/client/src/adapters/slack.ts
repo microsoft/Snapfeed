@@ -17,29 +17,19 @@ export interface SlackAdapterOptions {
   iconEmoji?: string
 }
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  bug: '🐛',
-  idea: '💡',
-  question: '❓',
-  praise: '🙌',
-  other: '📝',
-}
-
 export function slackAdapter(options: SlackAdapterOptions): FeedbackAdapter {
   return {
     name: 'slack',
     async send(event: TelemetryEvent): Promise<AdapterResult> {
       try {
         const detail = event.detail ?? {}
-        const category = (detail.category as string) || 'other'
         const message = (detail.message as string) || event.target || 'No message'
         const page = event.page || 'unknown'
-        const emoji = CATEGORY_EMOJI[category] || '📝'
 
         const blocks: unknown[] = [
           {
             type: 'header',
-            text: { type: 'plain_text', text: `${emoji} New Feedback: ${category}`, emoji: true },
+            text: { type: 'plain_text', text: '📝 New Feedback', emoji: true },
           },
           {
             type: 'section',
@@ -80,7 +70,7 @@ export function slackAdapter(options: SlackAdapterOptions): FeedbackAdapter {
 
         const payload: Record<string, unknown> = {
           blocks,
-          text: `${emoji} Feedback: ${message.substring(0, 100)}`,
+          text: `📝 Feedback: ${message.substring(0, 100)}`,
           username: options.username ?? 'Snapfeed',
           icon_emoji: options.iconEmoji ?? ':telescope:',
         }

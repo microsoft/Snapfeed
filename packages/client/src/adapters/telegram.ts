@@ -16,14 +16,6 @@ export interface TelegramAdapterOptions {
   parseMode?: 'HTML' | 'MarkdownV2'
 }
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  bug: '🐛',
-  idea: '💡',
-  question: '❓',
-  praise: '🙌',
-  other: '📝',
-}
-
 export function telegramAdapter(options: TelegramAdapterOptions): FeedbackAdapter {
   const { botToken, chatId } = options
   const parseMode = options.parseMode ?? 'HTML'
@@ -34,13 +26,11 @@ export function telegramAdapter(options: TelegramAdapterOptions): FeedbackAdapte
     async send(event: TelemetryEvent): Promise<AdapterResult> {
       try {
         const detail = event.detail ?? {}
-        const category = (detail.category as string) || 'other'
         const message = (detail.message as string) || event.target || 'No message'
         const page = event.page || 'unknown'
-        const emoji = CATEGORY_EMOJI[category] || '📝'
 
         const text = [
-          `${emoji} <b>Feedback: ${escapeHtml(category)}</b>`,
+          '📝 <b>Feedback</b>',
           '',
           escapeHtml(message),
           '',

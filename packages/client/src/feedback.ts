@@ -8,13 +8,11 @@
 
 import { createHeadlessFeedbackController, gatherContext } from './feedback-controller.js'
 import type {
-  FeedbackCategory,
   FeedbackController,
   FeedbackStatusTone,
   FeedbackTrigger,
   ResolvedConfig,
 } from './types.js'
-import { FEEDBACK_CATEGORIES } from './types.js'
 import { getSnapfeedTheme, setSnapfeedStylePreset, setSnapfeedTheme } from './ui-theme.js'
 
 let feedbackOverlay: HTMLDivElement | null = null
@@ -214,13 +212,6 @@ export function showFeedbackDialog(
     feedbackOverlay.addEventListener(evt, (e) => e.stopPropagation())
   }
 
-  const chipsHtml = FEEDBACK_CATEGORIES.map(
-    (category) =>
-      `<button type="button" data-cat="${category.id}" style="padding:4px 10px; border-radius:12px; border:1px solid ${category.id === snapshot.category ? theme.accent : theme.panelBorder};
-      background:${category.id === snapshot.category ? theme.accentSoft : 'transparent'}; color:${theme.panelText}; cursor:pointer;
-      font-size:12px; font-family:inherit; white-space:nowrap;">${category.emoji} ${category.label}</button>`,
-  ).join('')
-
   feedbackOverlay.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px">
       <div>
@@ -234,7 +225,6 @@ export function showFeedbackDialog(
       <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap"
         title="${escapeAttribute(snapshot.targetLabel)}">→ ${snapshot.targetLabel}</div>
     </div>
-    <div id="__sf_chips" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap">${chipsHtml}</div>
     <textarea id="__sf_text" rows="5" placeholder="What's wrong / what should change?"
       style="width:100%; box-sizing:border-box; background:${theme.inputBackground}; color:${theme.inputText}; border:1px solid ${theme.inputBorder};
              border-radius:${theme.panelRadius}; padding:8px; font-size:14px; resize:vertical; font-family:inherit;
@@ -284,7 +274,6 @@ export function showFeedbackDialog(
 
   const overlay = feedbackOverlay
   const textarea = getRequiredElement<HTMLTextAreaElement>(overlay, '#__sf_text')
-  const chipsContainer = getRequiredElement<HTMLDivElement>(overlay, '#__sf_chips')
   const status = getRequiredElement<HTMLDivElement>(overlay, '#__sf_status')
   const detailsToggle = overlay.querySelector<HTMLButtonElement>('#__sf_details_toggle')
   const detailsLabel = overlay.querySelector<HTMLSpanElement>('#__sf_details_label')
@@ -312,9 +301,6 @@ export function showFeedbackDialog(
   const annotateButton = getRequiredElement<HTMLButtonElement>(overlay, '#__sf_annotate')
   const screenshotCheckbox = overlay.querySelector<HTMLInputElement>('#__sf_include_screenshot')
   const contextCheckbox = overlay.querySelector<HTMLInputElement>('#__sf_include_context')
-  const chipButtons = Array.from(
-    chipsContainer.querySelectorAll<HTMLButtonElement>('button[data-cat]'),
-  )
   let positionRaf = 0
 
   const unsubscribe = controller.subscribe((nextSnapshot) => {
@@ -444,14 +430,6 @@ export function showFeedbackDialog(
     const hasText = snapshot.text.trim().length > 0
 
     textarea.disabled = isSubmitting || completion !== null
-    chipButtons.forEach((button) => {
-      const isActive = button.dataset.cat === snapshot.category
-      button.disabled = isSubmitting || completion !== null
-      button.style.border = `1px solid ${isActive ? theme.accent : theme.panelBorder}`
-      button.style.background = isActive ? theme.accentSoft : 'transparent'
-      button.style.opacity = isSubmitting || completion !== null ? '0.65' : '1'
-      button.style.cursor = isSubmitting || completion !== null ? 'not-allowed' : 'pointer'
-    })
 
     if (screenshotCheckbox) {
       screenshotCheckbox.checked = snapshot.includeScreenshot
@@ -556,12 +534,6 @@ export function showFeedbackDialog(
     updateStatus('Screenshot capture is unavailable on this page. Text feedback still works.')
     schedulePosition()
   }
-
-  chipsContainer.addEventListener('click', (e) => {
-    const button = (e.target as HTMLElement).closest('button[data-cat]') as HTMLButtonElement | null
-    if (!button || snapshot.submitState.kind !== 'idle') return
-    controller.setCategory(button.dataset.cat as FeedbackCategory)
-  })
 
   const focusTextarea = () => {
     if (!isActiveOverlay() || snapshot.submitState.kind !== 'idle') return

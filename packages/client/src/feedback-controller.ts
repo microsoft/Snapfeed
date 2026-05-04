@@ -5,7 +5,6 @@ import { enrichElement } from './plugins.js'
 import { flush, getSessionId, push } from './queue.js'
 import { sanitizeDetail } from './sanitize.js'
 import type {
-  FeedbackCategory,
   FeedbackController,
   FeedbackControllerSnapshot,
   FeedbackScreenshotState,
@@ -26,7 +25,6 @@ const RESERVED_ENRICHMENT_KEYS = new Set([
 
 interface ControllerState {
   text: string
-  category: FeedbackCategory
   includeScreenshot: boolean
   includeContext: boolean
   screenshotState: FeedbackScreenshotState
@@ -36,19 +34,14 @@ interface ControllerState {
   disposed: boolean
 }
 
-// html2canvas is a peer dependency — loaded lazily
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let html2canvasFn: ((el: HTMLElement, opts?: unknown) => Promise<HTMLCanvasElement>) | null = null
-
-async function loadHtml2Canvas(): Promise<typeof html2canvasFn> {
-  if (html2canvasFn) return html2canvasFn
-  try {
-    const mod = await import('html2canvas')
-    html2canvasFn = (mod.default ?? mod) as unknown as typeof html2canvasFn
-    return html2canvasFn
-  } catch {
-    return null
-  }
+/**
+ * Elements with this attribute are excluded from screenshot capture.
+ * The built-in feedback dialog and annotation canvas set it automatically;
+ * custom `feedback.onTrigger` UIs should also set it on their own panels
+ * if they want to be excluded from the captured image.
+ */
+function isSnapfeedOverlay(el: Element): boolean {
+  return el.hasAttribute('data-snapfeed-overlay')
 }
 
 function getCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
@@ -187,13 +180,24 @@ function buildBreadcrumb(baseContext: Record<string, unknown>): string {
   return crumbs.join(' › ') || 'page'
 }
 
+type Html2CanvasFn = (
+  element: HTMLElement,
+  options?: { [key: string]: unknown },
+) => Promise<HTMLCanvasElement>
+
+async function loadHtml2Canvas(): Promise<Html2CanvasFn> {
+  const mod = (await import('html2canvas')) as unknown as {
+    default?: Html2CanvasFn
+  } & Html2CanvasFn
+  return mod.default ?? mod
+}
+
 async function captureScreenshot(
   config: ResolvedConfig,
   clickX: number,
   clickY: number,
 ): Promise<string | null> {
   const html2canvas = await loadHtml2Canvas()
-  if (!html2canvas) return null
 
   try {
     const canvas = await html2canvas(document.body, {
@@ -202,7 +206,8 @@ async function captureScreenshot(
       scale: 1,
       logging: false,
       backgroundColor: config.feedback.backgroundColor,
-    } as unknown)
+      ignoreElements: isSnapfeedOverlay,
+    })
 
     const maxWidth = config.feedback.screenshotMaxWidth
     let finalCanvas = canvas
@@ -299,7 +304,6 @@ export function createHeadlessFeedbackController(
   const listeners = new Set<(snapshot: FeedbackControllerSnapshot) => void>()
   const state: ControllerState = {
     text: '',
-    category: 'bug',
     includeScreenshot: config.feedback.defaultIncludeScreenshot,
     includeContext: config.feedback.defaultIncludeContext,
     screenshotState: 'pending',
@@ -323,7 +327,6 @@ export function createHeadlessFeedbackController(
     x: trigger.x,
     y: trigger.y,
     text: state.text,
-    category: state.category,
     includeScreenshot: state.includeScreenshot,
     includeContext: state.includeContext,
     screenshotState: state.screenshotState,
@@ -395,7 +398,6 @@ export function createHeadlessFeedbackController(
 
   const getSanitizedDetail = (): Record<string, unknown> => {
     const detail: Record<string, unknown> = {
-      category: state.category,
       screenshot_included: state.includeScreenshot,
       page_context_included: state.includeContext,
     }
@@ -441,12 +443,6 @@ export function createHeadlessFeedbackController(
     setText(text) {
       if (state.submitState.kind !== 'idle') return
       state.text = text
-      notify()
-    },
-
-    setCategory(category) {
-      if (state.submitState.kind !== 'idle') return
-      state.category = category
       notify()
     },
 

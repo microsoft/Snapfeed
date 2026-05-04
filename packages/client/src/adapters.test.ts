@@ -22,7 +22,6 @@ const mockEvent: TelemetryEvent = {
   target: 'button.save',
   detail: {
     message: 'Something is broken',
-    category: 'bug',
     user: { name: 'Jane' },
     consoleErrors: ['Error: fail'],
   },
@@ -169,7 +168,6 @@ describe('githubAdapter', () => {
     expect(body.title).toContain('[Feedback]')
     expect(body.title).toContain('Something is broken')
     expect(body.labels).toContain('feedback')
-    expect(body.body).toContain('**Category:** bug')
     expect(body.body).toContain('**User:** Jane')
     expect(body.body).toContain('Error: fail')
   })
@@ -181,15 +179,6 @@ describe('githubAdapter', () => {
 
     const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)
     expect(body.body).toContain('![feedback screenshot]')
-  })
-
-  it('applies categoryLabels', async () => {
-    vi.stubGlobal('fetch', mockFetchOk({ number: 1 }))
-    const adapter = githubAdapter({ ...opts, categoryLabels: { bug: 'type:bug' } })
-    await adapter.send(mockEvent)
-
-    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)
-    expect(body.labels).toContain('type:bug')
   })
 
   it('returns error on non-ok response', async () => {
@@ -342,7 +331,7 @@ describe('discordAdapter', () => {
     expect(body.embeds).toHaveLength(1)
     expect(body.embeds[0].title).toContain('Feedback')
     expect(body.embeds[0].description).toBe('Something is broken')
-    expect(body.embeds[0].color).toBe(0xed4245) // bug color
+    expect(body.embeds[0].color).toBe(0x99aab5)
     expect(body.embeds[0].fields.length).toBeGreaterThanOrEqual(2)
   })
 

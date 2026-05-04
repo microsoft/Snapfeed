@@ -166,9 +166,7 @@ class Snapfeed_Dashboard {
 
             // Feedback message
             if ($is_feedback && !empty($detail['message'])) {
-                $category = $detail['category'] ?? 'other';
                 echo '<div class="snapfeed-event__message">';
-                echo '<strong>' . esc_html(ucfirst($category)) . ':</strong> ';
                 echo esc_html($detail['message']);
                 echo '</div>';
             }

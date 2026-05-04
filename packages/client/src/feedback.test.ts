@@ -199,6 +199,25 @@ describe('feedback overlay', () => {
     expect(status.textContent).toMatch(/screenshot attached/i)
   })
 
+  it('excludes the snapfeed feedback dialog from the screenshot', async () => {
+    const target = createTarget()
+    showFeedbackDialog(target, 120, 80)
+    await flushUi()
+
+    expect(vi.mocked(html2canvas)).toHaveBeenCalled()
+    const opts = vi.mocked(html2canvas).mock.calls[0][1] as
+      | { ignoreElements?: (el: Element) => boolean }
+      | undefined
+    expect(opts?.ignoreElements).toBeTypeOf('function')
+
+    const overlay = document.querySelector(
+      '[data-snapfeed-overlay="feedback-dialog"]',
+    ) as HTMLElement
+    const otherEl = document.body
+    expect(opts?.ignoreElements?.(overlay)).toBe(true)
+    expect(opts?.ignoreElements?.(otherEl)).toBe(false)
+  })
+
   it('honors screenshot and context toggles in the queued payload', async () => {
     const pushSpy = vi.spyOn(queue, 'push').mockImplementation(() => {})
     vi.spyOn(queue, 'flush').mockResolvedValue(true)
@@ -235,7 +254,6 @@ describe('feedback overlay', () => {
       'feedback',
       'Skip attachments for this quick note.',
       expect.objectContaining({
-        category: 'bug',
         screenshot_included: false,
         page_context_included: false,
       }),

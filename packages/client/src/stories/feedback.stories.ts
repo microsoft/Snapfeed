@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/html'
 import { createFeedbackController } from '../feedback.js'
 import { initSnapfeed } from '../index.js'
-import type { FeedbackCategory, FeedbackController, FeedbackTrigger } from '../types.js'
+import type { FeedbackController, FeedbackTrigger } from '../types.js'
 import { resolveConfig } from '../types.js'
 import {
   cleanupStorySurface,
@@ -19,18 +19,6 @@ const meta = {
 export default meta
 
 type Story = StoryObj
-
-const CUSTOM_CATEGORY_META: Array<{
-  id: FeedbackCategory
-  label: string
-  tone: string
-}> = [
-  { id: 'bug', label: 'Bug', tone: '#f97316' },
-  { id: 'idea', label: 'Idea', tone: '#0284c7' },
-  { id: 'question', label: 'Question', tone: '#7c3aed' },
-  { id: 'praise', label: 'Praise', tone: '#059669' },
-  { id: 'other', label: 'Other', tone: '#475569' },
-]
 
 let activeStoryTeardown: (() => void) | null = null
 
@@ -264,15 +252,6 @@ function mountCustomFeedbackPanel(controller: FeedbackController): void {
             </div>
           </div>
         </div>
-        <div style="display:grid; gap:10px;">
-          <div style="font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#64748b;">Signal</div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          ${CUSTOM_CATEGORY_META.map((category) => {
-            const isActive = snapshot.category === category.id
-            return `<button type="button" data-custom-cat="${category.id}" style="padding:8px 13px; border-radius:999px; border:1px solid ${isActive ? category.tone : 'rgba(148,163,184,0.28)'}; background:${isActive ? `${category.tone}18` : 'rgba(255,255,255,0.82)'}; color:${isActive ? '#0f172a' : '#334155'}; cursor:pointer; font-size:12px; font-weight:${isActive ? '700' : '500'}; box-shadow:${isActive ? '0 10px 24px rgba(15,23,42,0.08)' : 'none'};">${category.label}</button>`
-          }).join('')}
-          </div>
-        </div>
         <div style="padding:16px; border-radius:26px; background:linear-gradient(180deg, rgba(255,255,255,0.88), rgba(248,250,252,0.88)); border:1px solid rgba(148,163,184,0.16); box-shadow:inset 0 1px 0 rgba(255,255,255,0.56);">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
             <div style="font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#64748b;">Narrative</div>
@@ -322,11 +301,6 @@ function mountCustomFeedbackPanel(controller: FeedbackController): void {
       ?.addEventListener('input', (event) => {
         controller.setText((event.currentTarget as HTMLTextAreaElement).value)
       })
-    panel.querySelectorAll<HTMLButtonElement>('button[data-custom-cat]').forEach((button) => {
-      button.addEventListener('click', () => {
-        controller.setCategory(button.dataset.customCat as FeedbackCategory)
-      })
-    })
     panel
       .querySelector<HTMLInputElement>('#__sf_custom_screenshot')
       ?.addEventListener('change', (event) => {

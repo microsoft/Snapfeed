@@ -12,7 +12,7 @@ Close the loop between humans and AI agents. Capture UI feedback — screenshots
 
 == Description ==
 
-Snapfeed captures UI feedback from your WordPress site and stores it in your WordPress database. Users can Cmd+Click (or Ctrl+Click) anywhere on your site to submit annotated screenshots with categorized feedback (Bug, Idea, Question, Praise).
+Snapfeed captures UI feedback from your WordPress site and stores it in your WordPress database. Users can Cmd+Click (or Ctrl+Click) anywhere on your site to submit annotated screenshots with text feedback.
 
 **Features:**
 
@@ -21,7 +21,7 @@ Snapfeed captures UI feedback from your WordPress site and stores it in your Wor
 * 😤 Rage click detection
 * 🌐 Network request logging
 * 🔄 Lightweight session replay
-* 💬 Categorized feedback (Bug, Idea, Question, Praise)
+* 💬 Annotated screenshot feedback
 * 📊 Admin dashboard for viewing sessions and events
 * 🔐 Anti-spam: Cloudflare Turnstile + rate limiting
 * 🤖 REST API for AI agent access via Application Passwords
