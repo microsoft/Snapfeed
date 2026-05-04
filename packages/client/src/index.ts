@@ -61,7 +61,6 @@ export type {
   AdapterResult,
   ElementEnrichment,
   FeedbackAdapter,
-  FeedbackCategory,
   FeedbackConfig,
   FeedbackController,
   FeedbackControllerSnapshot,
@@ -79,7 +78,6 @@ export type {
   SnapfeedUser,
   TelemetryEvent,
 } from './types.js'
-export { FEEDBACK_CATEGORIES } from './types.js'
 export {
   DEFAULT_SNAPFEED_STYLE_PRESET,
   getSnapfeedStylePreset,

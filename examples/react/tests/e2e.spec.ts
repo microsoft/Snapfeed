@@ -174,7 +174,6 @@ test("submits feedback with screenshot and context", async ({ page }) => {
     string,
     unknown
   >;
-  expect(detail.category).toBe("bug");
   expect(detail["data-feedback-context"]).toBe("review-board");
   expect(detail.component).toBe("FeedbackReviewCard");
   expect(detail.form_state).toMatchObject({

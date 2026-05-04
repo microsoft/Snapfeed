@@ -24,9 +24,7 @@ export interface TelemetryEvent {
   screenshot?: string | null
 }
 
-// ── Feedback Categories ──────────────────────────────────────────────
-
-export type FeedbackCategory = 'bug' | 'idea' | 'question' | 'praise' | 'other'
+// ── Feedback States ──────────────────────────────────────────────────
 
 export type FeedbackStatusTone = 'success' | 'warning' | 'error'
 
@@ -47,7 +45,6 @@ export interface FeedbackControllerSnapshot {
   x: number
   y: number
   text: string
-  category: FeedbackCategory
   includeScreenshot: boolean
   includeContext: boolean
   screenshotState: FeedbackScreenshotState
@@ -60,7 +57,6 @@ export interface FeedbackController {
   getSnapshot(): FeedbackControllerSnapshot
   subscribe(listener: (snapshot: FeedbackControllerSnapshot) => void): () => void
   setText(text: string): void
-  setCategory(category: FeedbackCategory): void
   setIncludeScreenshot(include: boolean): void
   setIncludeContext(include: boolean): void
   getPayloadPreview(): Record<string, unknown>
@@ -74,18 +70,6 @@ export type FeedbackTriggerHandler = (
   controller: FeedbackController,
   trigger: FeedbackTrigger,
 ) => void
-
-export const FEEDBACK_CATEGORIES: Array<{
-  id: FeedbackCategory
-  emoji: string
-  label: string
-}> = [
-  { id: 'bug', emoji: '🐛', label: 'Bug' },
-  { id: 'idea', emoji: '💡', label: 'Idea' },
-  { id: 'question', emoji: '❓', label: 'Question' },
-  { id: 'praise', emoji: '🙌', label: 'Praise' },
-  { id: 'other', emoji: '📝', label: 'Other' },
-]
 
 // ── User Identity ────────────────────────────────────────────────────
 

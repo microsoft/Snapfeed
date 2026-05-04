@@ -16,33 +16,14 @@ export interface DiscordAdapterOptions {
   avatarUrl?: string
 }
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  bug: '🐛',
-  idea: '💡',
-  question: '❓',
-  praise: '🙌',
-  other: '📝',
-}
-
-const CATEGORY_COLOR: Record<string, number> = {
-  bug: 0xed4245,
-  idea: 0x57f287,
-  question: 0x5865f2,
-  praise: 0xfee75c,
-  other: 0x99aab5,
-}
-
 export function discordAdapter(options: DiscordAdapterOptions): FeedbackAdapter {
   return {
     name: 'discord',
     async send(event: TelemetryEvent): Promise<AdapterResult> {
       try {
         const detail = event.detail ?? {}
-        const category = (detail.category as string) || 'other'
         const message = (detail.message as string) || event.target || 'No message'
         const page = event.page || 'unknown'
-        const emoji = CATEGORY_EMOJI[category] || '📝'
-        const color = CATEGORY_COLOR[category] || 0x99aab5
 
         const fields: Array<{ name: string; value: string; inline?: boolean }> = [
           { name: '📍 Page', value: `\`${page}\``, inline: true },
@@ -68,9 +49,9 @@ export function discordAdapter(options: DiscordAdapterOptions): FeedbackAdapter 
         }
 
         const embed: Record<string, unknown> = {
-          title: `${emoji} Feedback: ${category}`,
+          title: '📝 Feedback',
           description: message,
-          color,
+          color: 0x99aab5,
           fields,
           timestamp: event.ts,
         }

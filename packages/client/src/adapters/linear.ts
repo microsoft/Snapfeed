@@ -17,14 +17,6 @@ export interface LinearAdapterOptions {
   priority?: number
 }
 
-const CATEGORY_LABEL: Record<string, string> = {
-  bug: '🐛 Bug',
-  idea: '💡 Idea',
-  question: '❓ Question',
-  praise: '🙌 Praise',
-  other: '📝 Feedback',
-}
-
 export function linearAdapter(options: LinearAdapterOptions): FeedbackAdapter {
   const { apiKey, teamId } = options
   const priority = options.priority ?? 3
@@ -34,13 +26,11 @@ export function linearAdapter(options: LinearAdapterOptions): FeedbackAdapter {
     async send(event: TelemetryEvent): Promise<AdapterResult> {
       try {
         const detail = event.detail ?? {}
-        const category = (detail.category as string) || 'other'
         const message = (detail.message as string) || event.target || 'No message'
         const page = event.page || 'unknown'
-        const label = CATEGORY_LABEL[category] || '📝 Feedback'
 
         const descLines: string[] = [
-          `**${label}**`,
+          '**📝 Feedback**',
           '',
           message,
           '',

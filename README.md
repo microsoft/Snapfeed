@@ -44,9 +44,9 @@ graph LR
 
 ### Use Case 2 — User → Queue → Agent
 
-Ship snapfeed in your production app. Real users submit feedback with
-categorized tags (🐛 Bug · 💡 Idea · ❓ Question · 🙌 Praise). Feedback
-accumulates in a queue. An agent — or your dev team — triages and acts on it.
+Ship snapfeed in your production app. Real users submit annotated screenshots
+and text feedback. Feedback accumulates in a queue. An agent — or your dev
+team — triages and acts on it.
 
 ```mermaid
 graph LR
@@ -126,7 +126,7 @@ curl localhost:8420/api/telemetry/events/42/screenshot --output feedback.jpg
 | --------------- | ----------------- | -------------------------------------------------------------------------- |
 | `session_start` | `initSnapfeed()`  | Viewport, URL, user agent, plugins                                         |
 | `click`         | Any click         | Element tag, role, CSS path, coordinates, component name (via plugins)     |
-| `feedback`      | **Cmd+Click**     | Annotated screenshot, user message, category, console errors, page context |
+| `feedback`      | **Cmd+Click**     | Annotated screenshot, user message, console errors, page context           |
 | `navigation`    | SPA route change  | Path, hash, search params                                                  |
 | `error`         | `window.onerror`  | Message, filename, line, stack trace                                       |
 | `api_error`     | `fetch()` non-2xx | URL, status, method                                                        |
