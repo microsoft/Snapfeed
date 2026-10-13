@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { FeedbackControllerSnapshot } from '../types.js'
 
 const storybookUtilsMocks = vi.hoisted(() => ({
   configureFeedbackStory: vi.fn(),
@@ -10,7 +11,7 @@ const storybookUtilsMocks = vi.hoisted(() => ({
 
 const feedbackControllerMocks = vi.hoisted(() => ({
   createFeedbackController: vi.fn(() => ({
-    getSnapshot: () => ({
+    getSnapshot: (): FeedbackControllerSnapshot => ({
       x: 0,
       y: 0,
       text: '',
@@ -71,14 +72,17 @@ import * as feedbackStories from './feedback.stories.js'
 type StoryModule = Record<string, unknown>
 
 function getStoryEntries(module: StoryModule): Array<[string, { render: () => HTMLElement }]> {
-  return Object.entries(module).filter(([, value]): value is { render: () => HTMLElement } => {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'render' in value &&
-      typeof value.render === 'function'
-    )
-  })
+  return Object.entries(module).filter(
+    (entry): entry is [string, { render: () => HTMLElement }] => {
+      const [, value] = entry
+      return (
+        typeof value === 'object' &&
+        value !== null &&
+        'render' in value &&
+        typeof value.render === 'function'
+      )
+    },
+  )
 }
 
 function flushAnimationFrame(): Promise<void> {
@@ -140,4 +144,23 @@ describe('Storybook stories', () => {
       expect(storybookUtilsMocks.openFeedbackForFixture).not.toHaveBeenCalled()
     })
   }
+
+  it('renders a custom UI completion message literally', async () => {
+    const controller = feedbackControllerMocks.createFeedbackController()
+    const snapshot = controller.getSnapshot()
+    const message = '<img src=x onerror=alert(1)> & "adapter"'
+    controller.getSnapshot = () => ({
+      ...snapshot,
+      submitState: { kind: 'complete', tone: 'success', message },
+    })
+    feedbackControllerMocks.createFeedbackController.mockReturnValueOnce(controller)
+    const story = getStoryEntries(feedbackStories).find(([name]) => name === 'CustomUi')?.[1]
+    if (!story) throw new Error('CustomUi story is missing')
+    const root = story.render()
+    document.body.appendChild(root)
+    await flushAnimationFrame()
+    const status = document.getElementById('__sf_custom_status')
+    expect(status?.textContent).toBe(message)
+    expect(status?.querySelector('img')).toBeNull()
+  })
 })

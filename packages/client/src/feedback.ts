@@ -7,8 +7,10 @@
  */
 
 import { createHeadlessFeedbackController, gatherContext } from './feedback-controller.js'
+import { renderFeedbackMessage } from './feedback-status.js'
 import type {
   FeedbackController,
+  FeedbackMessagePart,
   FeedbackStatusTone,
   FeedbackTrigger,
   ResolvedConfig,
@@ -109,10 +111,6 @@ function setButtonEnabled(button: HTMLButtonElement, enabled: boolean): void {
   button.disabled = !enabled
   button.style.opacity = enabled ? '1' : '0.55'
   button.style.cursor = enabled ? 'pointer' : 'not-allowed'
-}
-
-function escapeAttribute(value: string): string {
-  return value.replace(/"/g, '&quot;')
 }
 
 function getRequiredElement<T extends HTMLElement>(parent: ParentNode, selector: string): T {
@@ -221,9 +219,8 @@ export function showFeedbackDialog(
       <button type="button" aria-label="Close feedback dialog" id="__sf_close" style="background:none; border:none; color:${theme.mutedText}; cursor:pointer; font-size:16px; line-height:1; padding:2px 4px">✕</button>
     </div>
     <div style="color:${theme.mutedText}; font-size:11px; margin-bottom:10px; line-height:1.45">
-      <div style="margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${escapeAttribute(snapshot.breadcrumb)}">${snapshot.breadcrumb}</div>
-      <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap"
-        title="${escapeAttribute(snapshot.targetLabel)}">→ ${snapshot.targetLabel}</div>
+      <div id="__sf_breadcrumb" style="margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"></div>
+      <div id="__sf_target_label" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap"></div>
     </div>
     <textarea id="__sf_text" rows="5" placeholder="What's wrong / what should change?"
       style="width:100%; box-sizing:border-box; background:${theme.inputBackground}; color:${theme.inputText}; border:1px solid ${theme.inputBorder};
@@ -273,6 +270,12 @@ export function showFeedbackDialog(
   document.body.appendChild(feedbackOverlay)
 
   const overlay = feedbackOverlay
+  const breadcrumb = getRequiredElement<HTMLDivElement>(overlay, '#__sf_breadcrumb')
+  breadcrumb.textContent = snapshot.breadcrumb
+  breadcrumb.title = snapshot.breadcrumb
+  const targetLabel = getRequiredElement<HTMLDivElement>(overlay, '#__sf_target_label')
+  targetLabel.textContent = `→ ${snapshot.targetLabel}`
+  targetLabel.title = snapshot.targetLabel
   const textarea = getRequiredElement<HTMLTextAreaElement>(overlay, '#__sf_text')
   const status = getRequiredElement<HTMLDivElement>(overlay, '#__sf_status')
   const detailsToggle = overlay.querySelector<HTMLButtonElement>('#__sf_details_toggle')
@@ -386,12 +389,12 @@ export function showFeedbackDialog(
     return parts.length > 0 ? `Details · ${parts.join(' · ')}` : 'Details'
   }
 
-  const updateStatus = (message: string, tone?: FeedbackStatusTone, html = false) => {
-    if (html) {
-      status.innerHTML = message
-    } else {
-      status.textContent = message
-    }
+  const updateStatus = (
+    message: string,
+    tone?: FeedbackStatusTone,
+    parts?: FeedbackMessagePart[],
+  ) => {
+    renderFeedbackMessage(status, message, parts)
     status.style.padding = message ? '8px 10px' : '0'
     status.style.borderRadius = theme.panelRadius
     if (tone) {
@@ -486,7 +489,7 @@ export function showFeedbackDialog(
       sendButton.textContent = 'Close'
       setButtonEnabled(sendButton, true)
       cancelButton.style.display = 'none'
-      updateStatus(completion.message, completion.tone, completion.html)
+      updateStatus(completion.message, completion.tone, completion.messageParts)
       schedulePosition()
       return
     }

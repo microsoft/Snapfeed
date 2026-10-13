@@ -143,7 +143,7 @@ All events include `session_id`, `seq`, `ts`, `page`, and `target`.
 | [`@microsoft/snapfeed`](./packages/client)        | Client library — drop-in, framework-agnostic, zero config        |
 | [`@microsoft/snapfeed-server`](./packages/server) | Reference backend — Hono + SQLite, pluggable or standalone       |
 | [`examples/react`](./examples/react)              | React integration example and Playwright-backed verification lab |
-| [`examples/python`](./examples/python)            | Python backend example — FastAPI + SQLite (~100 lines)           |
+| [`examples/python`](./examples/python)            | Authenticated Python backend example — FastAPI + SQLite           |
 
 ## React E2E Lab
 
@@ -186,6 +186,10 @@ The harness prefers the real [`@microsoft/snapfeed-server`](./packages/server) i
 ## Server API
 
 Both the TypeScript and Python servers implement the same 4 endpoints:
+
+The Python example requires a configured runtime bearer token for all telemetry
+endpoints. See its [setup and security guidance](./examples/python/README.md)
+before connecting a client; CORS alone is not authentication.
 
 | Method | Endpoint                               | Description                                              |
 | ------ | -------------------------------------- | -------------------------------------------------------- |
@@ -264,11 +268,23 @@ initSnapfeed({
 
 Returns a teardown function: `const teardown = initSnapfeed(); teardown()`
 
+Set `headers` to a header record or a synchronous callback returning one for each
+telemetry flush/retry. This supports runtime credentials without patching `fetch`.
+Do not put server-wide secrets in a public browser bundle. For public apps, use
+an authenticated backend relay; the Python example documents a local-only
+runtime-token flow.
+
 Built-in presets are also available through the client package exports: `modern`, `windows90s`, `terminal`, `githubLight`, `dracula`, and `nord`. If you pass a custom `theme` object, Snapfeed merges it over the `modern` preset.
 
 ### Bring your own UI
 
 If you want Snapfeed's capture, queueing, adapters, and event contract without the built-in dialog, provide `feedback.onTrigger`.
+
+Completion `message` is always plain text. Custom UIs must use `textContent`
+(or framework text rendering), never `innerHTML`. Optional `messageParts`
+provide text and HTTP(S) delivery URLs for DOM links; the former `html` flag is
+no longer supported. Render every part's `text` literally and validate link
+protocols. Breadcrumbs, labels, adapter names and delivery IDs are also text.
 
 ```ts
 import { initSnapfeed } from "@microsoft/snapfeed";
@@ -408,7 +424,25 @@ app.listen(3000);
 ## Server Security
 
 The standalone Hono server includes rate limiting by default (60 req/min).
-For custom setups, use the security middleware individually:
+Set `allowedOrigins` to restrict browser origins for all `/api/*` routes:
+
+```ts
+import { createSnapfeedServer } from "@microsoft/snapfeed-server";
+
+createSnapfeedServer({
+  allowedOrigins: ["https://myapp.com", /^https:\/\/preview\.myapp\.com$/],
+});
+```
+
+Unlisted origins receive `403` before CORS preflight or API handlers run, even
+with `corsEnabled: false`. Omitting `allowedOrigins` or setting it to `null`
+preserves open access; an empty array rejects every request with an `Origin`
+header. Requests without an `Origin` header remain allowed for server-to-server
+use. Origin checks are not authentication: non-browser callers can omit or
+forge this header. Protect sensitive telemetry with authentication and network
+access controls as well.
+
+For custom Hono setups, use the security middleware individually:
 
 ```ts
 import { snapfeedRoutes, openDb } from "@microsoft/snapfeed-server";

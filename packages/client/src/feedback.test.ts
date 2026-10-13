@@ -38,7 +38,7 @@ import {
 } from './feedback.js'
 import { enrichElement } from './plugins.js'
 import * as queue from './queue.js'
-import { resolveConfig } from './types.js'
+import { type FeedbackAdapter, resolveConfig } from './types.js'
 
 function createCanvasContext(): CanvasRenderingContext2D {
   return {
@@ -572,5 +572,126 @@ describe('feedback controller', () => {
       y: 48,
     })
     expect(document.querySelector('[data-snapfeed-overlay="feedback-dialog"]')).toBeNull()
+  })
+
+  async function submitWithAdapters(adapters: FeedbackAdapter[]) {
+    vi.spyOn(queue, 'push').mockImplementation(() => {})
+    vi.spyOn(queue, 'flush').mockResolvedValue(true)
+    initFeedback(resolveConfig({ adapters, feedback: { defaultIncludeScreenshot: false } }))
+    const controller = createFeedbackController({ element: createTarget(), x: 0, y: 0 })
+    showFeedbackDialog(controller)
+    controller.setText('Security regression')
+    const completion = await controller.submit()
+    const status = document.getElementById('__sf_status')
+    expect(status).not.toBeNull()
+    return { completion, status: status! }
+  }
+
+  it('renders adapter names, IDs and failures literally without HTML in the completion message', async () => {
+    const name = '<img src=x onerror=alert(1)>'
+    const id = '<svg onload=alert(2)>'
+    const failure = '<iframe srcdoc="<script>alert(3)</script>">'
+    const { completion, status } = await submitWithAdapters([
+      {
+        name,
+        send: async () => ({
+          ok: true,
+          deliveryId: id,
+          deliveryUrl: 'https://example.com/issue/1',
+        }),
+      },
+      { name: failure, send: async () => ({ ok: false }) },
+    ])
+    expect(completion).toEqual(
+      expect.objectContaining({
+        kind: 'complete',
+        tone: 'warning',
+        message: `Delivered via ${name} #${id}. Failed: ${failure}.`,
+      }),
+    )
+    expect(status.querySelector('img, svg, iframe, script')).toBeNull()
+    expect(status.textContent).toBe(`Delivered via ${name} #${id}. Failed: ${failure}.`)
+    expect(status.querySelector('a')?.textContent).toBe(`${name} #${id}`)
+  })
+
+  it.each([
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    'java\tscript:alert(1)',
+    'java\nscript:alert(1)',
+    '\u0000javascript:alert(1)',
+    'data:text/html,<svg onload=alert(1)>',
+    'vbscript:alert(1)',
+    'file:///tmp/report',
+    'https://[invalid',
+  ])('does not create a link for unsafe deliveryUrl %s', async (deliveryUrl) => {
+    const { status } = await submitWithAdapters([
+      { name: 'custom', send: async () => ({ ok: true, deliveryId: '7', deliveryUrl }) },
+    ])
+    expect(status.querySelector('a')).toBeNull()
+    expect(status.textContent).toBe('Feedback delivered via custom #7.')
+  })
+
+  it('does not parse quotes or markup in a delivery URL as HTML', async () => {
+    const deliveryUrl = 'https://example.com/" onclick="alert(1)"><img src=x onerror=alert(2)>'
+    const { status } = await submitWithAdapters([
+      { name: 'custom', send: async () => ({ ok: true, deliveryUrl }) },
+    ])
+    expect(status.querySelector('img')).toBeNull()
+    const link = status.querySelector('a')
+    expect(link?.getAttribute('onclick')).toBeNull()
+    expect(link?.href).toBe(new URL(deliveryUrl, document.baseURI).href)
+  })
+
+  it.each([
+    'https://example.com/issues/7',
+    'http://localhost:8420/report/7',
+    '/reports/7',
+  ])('keeps safe delivery links clickable: %s', async (deliveryUrl) => {
+    const { status } = await submitWithAdapters([
+      { name: 'custom', send: async () => ({ ok: true, deliveryId: '7', deliveryUrl }) },
+    ])
+    const link = status.querySelector('a')
+    expect(link?.href).toBe(new URL(deliveryUrl, document.baseURI).href)
+    expect(link?.textContent).toBe('custom #7')
+    expect(link?.target).toBe('_blank')
+    expect(link?.rel).toContain('noopener')
+  })
+
+  it('keeps mixed successful, failed and rejected adapter delivery messages', async () => {
+    const { completion, status } = await submitWithAdapters([
+      {
+        name: 'linked',
+        send: async () => ({ ok: true, deliveryId: '1', deliveryUrl: '/reports/1' }),
+      },
+      { name: 'plain', send: async () => ({ ok: true, deliveryId: '2' }) },
+      { name: 'failed', send: async () => ({ ok: false }) },
+      {
+        name: 'rejected',
+        send: async () => {
+          throw new Error('Delivery failed')
+        },
+      },
+    ])
+    expect(completion).toEqual(expect.objectContaining({ kind: 'complete', tone: 'warning' }))
+    expect(status.textContent).toBe('Delivered via linked #1, plain #2. Failed: failed, adapter.')
+    expect(status.querySelectorAll('a')).toHaveLength(1)
+  })
+
+  it('renders breadcrumb and target labels as literal text and titles', () => {
+    const target = createTarget()
+    const payload = '<img src=x onerror=alert(1)> & "quoted"'
+    target.dataset.feedbackContext = payload
+    target.setAttribute('aria-label', payload)
+    const controller = createFeedbackController({ element: target, x: 0, y: 0 })
+    showFeedbackDialog(controller)
+    const overlay = document.querySelector('[data-snapfeed-overlay="feedback-dialog"]')
+    expect(overlay?.querySelector('img')).toBeNull()
+    expect(overlay?.textContent).toContain(payload)
+    const titles = Array.from(overlay?.querySelectorAll('[title]') ?? []).map((el) =>
+      el.getAttribute('title'),
+    )
+    expect(titles).toContain(controller.getSnapshot().breadcrumb)
+    expect(titles).toContain(payload)
   })
 })

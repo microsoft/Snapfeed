@@ -15,7 +15,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { openDb } from './db.js'
 import { snapfeedRoutes } from './routes.js'
-import { rateLimit } from './security.js'
+import { originAllowlist, rateLimit } from './security.js'
 
 export type { DatabaseType, OpenDbOptions } from './db.js'
 export { openDb } from './db.js'
@@ -41,7 +41,7 @@ export interface ServerOptions {
   rateLimitEnabled?: boolean
   /** Rate limit: max requests per window. Default: 60 */
   rateLimitMax?: number
-  /** Allowed origins. Null = allow all. */
+  /** Allowed origins for /api/* requests. Null or omitted = allow all. */
   allowedOrigins?: (string | RegExp)[] | null
   /** Additional Hono middleware or routes to mount. */
   configure?: (app: Hono) => void
@@ -57,6 +57,10 @@ export function createSnapfeedServer(options: ServerOptions = {}): {
 
   const db = openDb({ path: dbPath })
   const app = new Hono()
+
+  if (options.allowedOrigins) {
+    app.use('/api/*', originAllowlist({ origins: options.allowedOrigins }))
+  }
 
   if (options.corsEnabled !== false) {
     app.use('*', cors())

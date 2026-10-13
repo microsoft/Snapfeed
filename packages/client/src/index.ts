@@ -64,6 +64,7 @@ export type {
   FeedbackConfig,
   FeedbackController,
   FeedbackControllerSnapshot,
+  FeedbackMessagePart,
   FeedbackScreenshotState,
   FeedbackStatusTone,
   FeedbackSubmitState,

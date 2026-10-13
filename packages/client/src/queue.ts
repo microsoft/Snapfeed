@@ -52,9 +52,10 @@ export async function flush(): Promise<boolean> {
   if (!config || queue.length === 0) return true
   const batch = queue.splice(0, queue.length)
   try {
+    const headers = typeof config.headers === 'function' ? config.headers() : config.headers
     const response = await fetch(config.endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ events: batch }),
     })
     if (!response.ok) {
@@ -67,6 +68,7 @@ export async function flush(): Promise<boolean> {
     // Put events back if the backend is down
     queue.unshift(...batch)
     if (config && queue.length > config.maxQueueSize) queue.splice(config.maxQueueSize)
+    console.warn('[snapfeed] Telemetry delivery failed; batch retained for retry.')
     return false
   }
 }

@@ -2,7 +2,9 @@
 Snapfeed Python backend example — FastAPI + SQLite.
 
 Usage:
-    pip install fastapi uvicorn
+    pip install -r requirements.txt
+    export SNAPFEED_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+    export SNAPFEED_ALLOWED_ORIGINS="http://localhost:5173"
     uvicorn server:app --port 8420
 """
 
@@ -10,13 +12,17 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import secrets
 import sqlite3
 from contextlib import asynccontextmanager
 from typing import Any
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 # ── Schema ────────────────────────────────────────────────────────────
@@ -52,16 +58,37 @@ def get_db() -> sqlite3.Connection:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    token = os.environ.get("SNAPFEED_API_TOKEN", "")
+    if not token.strip():
+        raise RuntimeError("SNAPFEED_API_TOKEN must be configured with a non-blank secret")
+    app.state.api_token = token
     db = get_db()
     db.executescript(SCHEMA)
     db.close()
     yield
 
 
-# ── App ───────────────────────────────────────────────────────────────
+# ── Authentication ────────────────────────────────────────────────────
 
-app = FastAPI(title="snapfeed-server", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+bearer = HTTPBearer(auto_error=False)
+
+
+def require_auth(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+):
+    token = getattr(request.app.state, "api_token", None)
+    if not token:
+        raise HTTPException(503, "Server authentication is not configured")
+    if credentials is None or not secrets.compare_digest(
+        credentials.credentials.encode("utf-8"), token.encode("utf-8"),
+    ):
+        raise HTTPException(
+            401, "Invalid or missing bearer token", headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+router = APIRouter(prefix="/api/telemetry", dependencies=[Depends(require_auth)])
 
 
 # ── Models ────────────────────────────────────────────────────────────
@@ -83,7 +110,7 @@ class TelemetryBatch(BaseModel):
 
 # ── Routes ────────────────────────────────────────────────────────────
 
-@app.post("/api/telemetry/events")
+@router.post("/events")
 def ingest_events(batch: TelemetryBatch):
     """Receive a batch of UI telemetry events."""
     db = get_db()
@@ -105,7 +132,7 @@ def ingest_events(batch: TelemetryBatch):
     return {"accepted": len(rows)}
 
 
-@app.get("/api/telemetry/events")
+@router.get("/events")
 def list_events(
     session_id: str | None = None,
     event_type: str | None = None,
@@ -135,7 +162,7 @@ def list_events(
     return rows
 
 
-@app.get("/api/telemetry/sessions")
+@router.get("/sessions")
 def list_sessions(limit: int = Query(default=20, le=100)):
     """List telemetry sessions with event counts."""
     db = get_db()
@@ -157,7 +184,7 @@ def list_sessions(limit: int = Query(default=20, le=100)):
     return rows
 
 
-@app.get("/api/telemetry/events/{event_id}/screenshot")
+@router.get("/events/{event_id}/screenshot")
 def get_screenshot(event_id: int):
     """Serve a feedback screenshot as JPEG."""
     db = get_db()
@@ -170,6 +197,35 @@ def get_screenshot(event_id: int):
     return Response(content=base64.b64decode(row[0]), media_type="image/jpeg")
 
 
-@app.get("/health")
 def health():
-    return {"status": "ok", "db": DB_PATH}
+    return {"status": "ok"}
+
+
+def create_app() -> FastAPI:
+    origins = [
+        origin.strip() for origin in os.environ.get("SNAPFEED_ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+    for origin in origins:
+        parsed = urlsplit(origin)
+        if (
+            parsed.scheme not in ("http", "https") or not parsed.hostname
+            or parsed.username is not None or parsed.password is not None
+            or parsed.path or parsed.query or parsed.fragment
+            or any(character.isspace() for character in origin)
+        ):
+            raise ValueError("SNAPFEED_ALLOWED_ORIGINS must contain exact HTTP(S) origins")
+        # Accessing port also rejects invalid port numbers.
+        parsed.port
+
+    app = FastAPI(title="snapfeed-server", lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+    app.include_router(router)
+    app.get("/health")(health)
+    return app
+
+
+app = create_app()

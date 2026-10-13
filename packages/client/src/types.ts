@@ -30,10 +30,22 @@ export type FeedbackStatusTone = 'success' | 'warning' | 'error'
 
 export type FeedbackScreenshotState = 'pending' | 'ready' | 'unavailable'
 
+export interface FeedbackMessagePart {
+  text: string
+  /** Optional HTTP(S) delivery link; render text literally, never as HTML. */
+  url?: string
+}
+
 export type FeedbackSubmitState =
   | { kind: 'idle' }
   | { kind: 'submitting' }
-  | { kind: 'complete'; tone: FeedbackStatusTone; message: string; html?: boolean }
+  | {
+      kind: 'complete'
+      tone: FeedbackStatusTone
+      /** Plain-text completion message, including adapter names and IDs. */
+      message: string
+      messageParts?: FeedbackMessagePart[]
+    }
 
 export interface FeedbackTrigger {
   element: Element
@@ -167,6 +179,8 @@ export interface FeedbackConfig {
 export interface SnapfeedConfig {
   /** Endpoint URL for posting telemetry events. Default: '/api/telemetry/events' */
   endpoint?: string
+  /** Telemetry request headers, resolved on each flush for runtime credentials. */
+  headers?: Record<string, string> | (() => Record<string, string>)
   /** Flush interval in milliseconds. Default: 3000 */
   flushIntervalMs?: number
   /** Maximum events in the queue before oldest are dropped. Default: 500 */
@@ -213,6 +227,7 @@ export interface SnapfeedConfig {
 /** Resolved config with all defaults applied. */
 export interface ResolvedConfig {
   endpoint: string
+  headers: Record<string, string> | (() => Record<string, string>)
   flushIntervalMs: number
   maxQueueSize: number
   trackClicks: boolean
@@ -247,6 +262,7 @@ export function resolveConfig(config: SnapfeedConfig = {}): ResolvedConfig {
 
   return {
     endpoint: config.endpoint ?? '/api/telemetry/events',
+    headers: config.headers ?? {},
     flushIntervalMs: config.flushIntervalMs ?? 3000,
     maxQueueSize: config.maxQueueSize ?? 500,
     trackClicks: config.trackClicks ?? true,

@@ -65,7 +65,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r examples/python/requirements.txt
+        run: pip install -r examples/python/requirements-test.txt
 
       - name: Syntax check
         run: python -m py_compile examples/python/server.py
+
+      - name: Test authentication and CORS
+        run: python -m unittest discover -s examples/python -p "test_*.py" -v
