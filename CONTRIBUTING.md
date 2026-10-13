@@ -32,6 +32,9 @@ npm run build
 npm run build --workspace=packages/client
 npm run build --workspace=packages/server
 
+# Refresh the client bundle shipped by the WordPress plugin after client changes
+npm run build:wordpress
+
 # Run tests
 npm test
 

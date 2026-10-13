@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
+    "build:wordpress": "npm run build --workspace=packages/client && node scripts/copy-wordpress-client.mjs",
     "build:react-e2e": "npm run -w examples/react build",
     "clean": "npm run clean --workspaces",
     "dev:react-e2e": "npm run -w examples/react dev",

@@ -277,7 +277,7 @@ function mountCustomFeedbackPanel(controller: FeedbackController): void {
         </div>
         <div style="padding:16px; border-radius:26px; background:rgba(255,255,255,0.52); border:1px solid ${statusAppearance.borderColor}; box-shadow:inset 0 1px 0 rgba(255,255,255,0.65);">
           <div style="font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:${statusAppearance.textColor}; margin-bottom:8px;">${statusAppearance.eyebrow}</div>
-          <div id="__sf_custom_status" style="color:${statusAppearance.textColor}; font-size:14px; line-height:1.6;">${statusAppearance.message}</div>
+          <div id="__sf_custom_status" style="color:${statusAppearance.textColor}; font-size:14px; line-height:1.6;">${escapeHtml(statusAppearance.message)}</div>
         </div>
         <div style="padding:16px; border-radius:26px; background:linear-gradient(180deg, rgba(15,23,42,0.92), rgba(15,23,42,0.86)); border:1px solid rgba(148,163,184,0.14); color:#e2e8f0; box-shadow:0 18px 40px rgba(15,23,42,0.2);">
           <div style="display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:10px;">

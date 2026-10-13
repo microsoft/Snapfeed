@@ -1,5 +1,6 @@
 import { showAnnotationCanvas } from './annotation.js'
 import { getConsoleErrors } from './console-capture.js'
+import { getSafeDeliveryUrl } from './feedback-status.js'
 import { getLabel, getPath, getText } from './helpers.js'
 import { enrichElement } from './plugins.js'
 import { flush, getSessionId, push } from './queue.js'
@@ -7,6 +8,7 @@ import { sanitizeDetail } from './sanitize.js'
 import type {
   FeedbackController,
   FeedbackControllerSnapshot,
+  FeedbackMessagePart,
   FeedbackScreenshotState,
   FeedbackSubmitState,
   FeedbackTrigger,
@@ -537,22 +539,17 @@ export function createHeadlessFeedbackController(
       )
       if (state.disposed) return state.submitState
 
-      const adapterSuccesses: string[] = []
+      const adapterSuccesses: FeedbackMessagePart[] = []
       const adapterFailures: string[] = []
-      let hasDeliveryUrl = false
       for (const entry of adapterResults) {
         if (entry.status === 'rejected') {
           adapterFailures.push('adapter')
         } else if (entry.value.result.ok) {
-          const { deliveryId: id, deliveryUrl: url } = entry.value.result
-          if (url) {
-            adapterSuccesses.push(
-              `<a href="${url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${entry.value.name} #${id ?? ''}</a>`,
-            )
-            hasDeliveryUrl = true
-          } else {
-            adapterSuccesses.push(id ? `${entry.value.name} #${id}` : entry.value.name)
-          }
+          const { deliveryId: id, deliveryUrl } = entry.value.result
+          adapterSuccesses.push({
+            text: id ? `${entry.value.name} #${id}` : entry.value.name,
+            url: getSafeDeliveryUrl(deliveryUrl),
+          })
         } else {
           adapterFailures.push(entry.value.name)
         }
@@ -561,19 +558,22 @@ export function createHeadlessFeedbackController(
       const hasAdapterSuccess = adapterSuccesses.length > 0
       const hasAdapterFailure = adapterFailures.length > 0
 
-      if (hasAdapterSuccess && !hasAdapterFailure) {
-        state.submitState = {
-          kind: 'complete',
-          tone: 'success',
-          message: `Feedback delivered via ${adapterSuccesses.join(', ')}.`,
-          html: hasDeliveryUrl,
+      if (hasAdapterSuccess) {
+        const messageParts: FeedbackMessagePart[] = [
+          { text: hasAdapterFailure ? 'Delivered via ' : 'Feedback delivered via ' },
+        ]
+        for (const [index, success] of adapterSuccesses.entries()) {
+          if (index > 0) messageParts.push({ text: ', ' })
+          messageParts.push(success)
         }
-      } else if (hasAdapterSuccess && hasAdapterFailure) {
+        messageParts.push({
+          text: hasAdapterFailure ? `. Failed: ${adapterFailures.join(', ')}.` : '.',
+        })
         state.submitState = {
           kind: 'complete',
-          tone: 'warning',
-          message: `Delivered via ${adapterSuccesses.join(', ')}. Failed: ${adapterFailures.join(', ')}.`,
-          html: hasDeliveryUrl,
+          tone: hasAdapterFailure ? 'warning' : 'success',
+          message: messageParts.map((part) => part.text).join(''),
+          messageParts,
         }
       } else if (!hasAdapterSuccess && config.adapters.length > 0) {
         state.submitState = {
