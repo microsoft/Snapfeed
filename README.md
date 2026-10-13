@@ -408,7 +408,25 @@ app.listen(3000);
 ## Server Security
 
 The standalone Hono server includes rate limiting by default (60 req/min).
-For custom setups, use the security middleware individually:
+Set `allowedOrigins` to restrict browser origins for all `/api/*` routes:
+
+```ts
+import { createSnapfeedServer } from "@microsoft/snapfeed-server";
+
+createSnapfeedServer({
+  allowedOrigins: ["https://myapp.com", /^https:\/\/preview\.myapp\.com$/],
+});
+```
+
+Unlisted origins receive `403` before CORS preflight or API handlers run, even
+with `corsEnabled: false`. Omitting `allowedOrigins` or setting it to `null`
+preserves open access; an empty array rejects every request with an `Origin`
+header. Requests without an `Origin` header remain allowed for server-to-server
+use. Origin checks are not authentication: non-browser callers can omit or
+forge this header. Protect sensitive telemetry with authentication and network
+access controls as well.
+
+For custom Hono setups, use the security middleware individually:
 
 ```ts
 import { snapfeedRoutes, openDb } from "@microsoft/snapfeed-server";
